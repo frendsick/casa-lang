@@ -1,6 +1,7 @@
 #![feature(if_let_guard)]
 
 mod defs;
+mod ir;
 mod lexer;
 
 use std::path::Path;
@@ -12,5 +13,8 @@ fn main() {
     let code = std::fs::read_to_string(CODE_FILE).unwrap();
 
     let tokens = lexer::parse_tokens(&code);
-    dbg!(tokens);
+    dbg!(&tokens);
+
+    let ops = ir::generate_ops(&tokens);
+    dbg!(&ops);
 }
