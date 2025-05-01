@@ -1,12 +1,22 @@
+use phf::phf_map;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-
 use strum_macros::{Display, EnumString};
+
+pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {
+    ':' => Delimiter::Colon,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
+    Delimiter(Delimiter),
     Intrinsic(Intrinsic),
     Literal(Literal),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Delimiter {
+    Colon,
 }
 
 #[derive(Debug, Clone, PartialEq)]

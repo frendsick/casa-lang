@@ -1,4 +1,4 @@
-use crate::defs::{Intrinsic, Literal, Location, Token, TokenType};
+use crate::defs::{DELIMITERS, Intrinsic, Literal, Location, Token, TokenType};
 use std::io;
 use std::path::PathBuf;
 
@@ -26,6 +26,7 @@ fn get_unparsed(code: &str, cursor: usize) -> &str {
 fn get_next_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Token> {
     parse_over_whitespace(code, cursor);
 
+    let location = get_location(code, *cursor, file);
     let unparsed = get_unparsed(code, *cursor);
     let mut chars = unparsed.chars();
     let first = chars.next()?;
@@ -34,12 +35,19 @@ fn get_next_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Toke
     // Handle tokens recognized by the first character
     match first {
         '"' => return parse_string_literal_token(code, cursor, file),
+        c if let Some(delimiter) = DELIMITERS.get(&c) => {
+            *cursor += 1;
+            return Some(Token::new(
+                &c.to_string(),
+                TokenType::Delimiter(delimiter.clone()),
+                location,
+            ));
+        }
         _ => {}
     }
 
     // Handle other tokens
-    let location = get_location(code, *cursor, file);
-    let value = parse_until_whitespace(code, cursor);
+    let value = parse_until_whitespace_or_delimiter(code, cursor);
     match value {
         v if let Ok(integer) = v.parse::<i32>() => Some(Token::new(
             value,
@@ -88,10 +96,10 @@ fn parse_over_whitespace(code: &str, cursor: &mut usize) {
     *cursor = code.len();
 }
 
-fn parse_until_whitespace<'a>(code: &'a str, cursor: &'a mut usize) -> &'a str {
+fn parse_until_whitespace_or_delimiter<'a>(code: &'a str, cursor: &'a mut usize) -> &'a str {
     let start = *cursor;
     for (i, char) in code[start..].char_indices() {
-        if char.is_whitespace() {
+        if char.is_whitespace() || DELIMITERS.get(&char).is_some() {
             *cursor = start + i;
             return &code[start..start + i];
         }
