@@ -90,6 +90,7 @@ fn get_asm_code_for_op(op: &Op) -> String {
 
 fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
     match intrinsic {
+        Intrinsic::Add => get_asm_add().to_string(),
         Intrinsic::Syscall3 => get_asm_syscall(3),
     }
 }
@@ -109,6 +110,11 @@ pushq %rsi",
         op.id
     )
     .to_string()
+}
+
+fn get_asm_add() -> &'static str {
+    "popq %rax
+add %rax, (%rsp)"
 }
 
 fn get_asm_syscall(argc: usize) -> String {

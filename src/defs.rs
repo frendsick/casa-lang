@@ -37,6 +37,7 @@ pub enum Literal {
 #[derive(Debug, Clone, PartialEq, EnumString, Display)]
 #[strum(serialize_all = "lowercase")]
 pub enum Intrinsic {
+    Add,
     Syscall3,
 }
 

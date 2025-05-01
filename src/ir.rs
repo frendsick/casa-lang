@@ -23,12 +23,10 @@ pub fn generate_ops(tokens: &[Token]) -> Vec<Op> {
 }
 
 fn get_intrinsic_op(intrinsic: &Intrinsic, token: &Token) -> Op {
+    let id = OP_COUNTER.fetch_add();
     match intrinsic {
-        Intrinsic::Syscall3 => Op::new(
-            OP_COUNTER.fetch_add(),
-            OpType::Intrinsic(intrinsic.clone()),
-            token,
-        ),
+        Intrinsic::Add => Op::new(id, OpType::Intrinsic(intrinsic.clone()), token),
+        Intrinsic::Syscall3 => Op::new(id, OpType::Intrinsic(intrinsic.clone()), token),
     }
 }
 
