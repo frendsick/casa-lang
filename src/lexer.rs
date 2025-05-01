@@ -75,7 +75,7 @@ fn parse_until_whitespace<'a>(code: &'a str, cursor: &'a mut usize) -> &'a str {
 fn parse_string_literal_token(code: &str, cursor: &mut usize) -> Option<Token> {
     let unparsed = get_unparsed(code, *cursor);
     let mut chars = unparsed.char_indices();
-    let (mut end_index, first) = chars.next()?;
+    let (_, first) = chars.next()?;
 
     if first != '"' {
         return None;
