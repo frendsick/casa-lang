@@ -18,12 +18,12 @@ fn main() -> io::Result<()> {
     let segments = lexer::parse_segments_from_file(code_file)?;
     dbg!(&segments);
 
-    // let assembly_code = asm::generate_assembly_code(&ops);
-    // let assembly_file = crate_dir.join(ASSEMBLY_FILE);
-    // std::fs::write(&assembly_file, &assembly_code)?;
-    // println!("{}", &assembly_code);
-    //
-    // compile_assembly_code(&assembly_file)?;
+    let assembly_code = asm::generate_assembly_code(&segments);
+    let assembly_file = crate_dir.join(ASSEMBLY_FILE);
+    std::fs::write(&assembly_file, &assembly_code)?;
+    println!("{}", &assembly_code);
+
+    compile_assembly_code(&assembly_file)?;
 
     Ok(())
 }
