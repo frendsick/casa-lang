@@ -121,6 +121,12 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::PushInt => get_asm_push_int(op),
         OpType::PushStr => get_asm_push_str(op, function),
+        // All unknown ops should be resolved before assembly generation
+        OpType::Unknown => {
+            dbg!(op);
+            todo!()
+        }
+        _ => todo!(),
     }
 }
 

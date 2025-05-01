@@ -1,6 +1,8 @@
 use crate::defs::{
-    Counter, Function, Intrinsic, Keyword, Literal, Location, Op, OpType, Segment, Token, TokenType, DELIMITERS
+    Counter, DELIMITERS, Function, Intrinsic, Keyword, Literal, Location, Op, OpType, Segment,
+    Token, TokenType,
 };
+use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 
@@ -19,6 +21,9 @@ pub fn parse_segments_from_file(file: PathBuf) -> io::Result<Vec<Segment>> {
     // Make sure the whole code was parsed
     assert!(cursor >= code.len());
 
+    // Identifier resolution was not performed during initial parsing
+    resolve_identifiers(&mut segments);
+
     Ok(segments)
 }
 
@@ -32,6 +37,38 @@ fn parse_next_segment(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<
             Some(Segment::Function(function))
         }
         _ => None,
+    }
+}
+
+fn resolve_identifiers(segments: &mut [Segment]) {
+    // Build symbol table
+    let mut symbol_table: HashMap<String, OpType> = HashMap::new();
+    for segment in &*segments {
+        match segment {
+            Segment::Function(f) => {
+                symbol_table.insert(f.name.clone(), OpType::FunctionCall);
+            }
+        }
+    }
+
+    // Now walk each function and resolve ops based on the symbol table
+    for segment in segments.iter_mut() {
+        let Segment::Function(func) = segment;
+        resolve_identifiers_for_function(func, &symbol_table);
+    }
+}
+
+fn resolve_identifiers_for_function(
+    function: &mut Function,
+    symbol_table: &HashMap<String, OpType>,
+) {
+    for op in &mut function.ops {
+        if op.ty != OpType::Unknown {
+            continue;
+        }
+        if let Some(op_type) = symbol_table.get(&op.token.value) {
+            op.ty = op_type.clone();
+        }
     }
 }
 
@@ -55,7 +92,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
         }
         match &token.ty {
             TokenType::Delimiter(_) => {}
-            TokenType::Identifier => {}
+            TokenType::Identifier => ops.push(get_identifier_op(&token)),
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
             TokenType::Keyword(v) => {
@@ -73,13 +110,18 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
     })
 }
 
-pub fn get_intrinsic_op(intrinsic: &Intrinsic, token: &Token) -> Op {
+fn get_identifier_op(token: &Token) -> Op {
+    // Identifier resolution is not performed during initial parsing
+    Op::new(OP_COUNTER.fetch_add(), OpType::Unknown, token)
+}
+
+fn get_intrinsic_op(intrinsic: &Intrinsic, token: &Token) -> Op {
     let id = OP_COUNTER.fetch_add();
     let op_type = OpType::Intrinsic(intrinsic.clone());
     Op::new(id, op_type, token)
 }
 
-pub fn get_literal_op(literal: &Literal, token: &Token) -> Op {
+fn get_literal_op(literal: &Literal, token: &Token) -> Op {
     let id = OP_COUNTER.fetch_add();
     match literal {
         Literal::Integer(_) => Op::new(id, OpType::PushInt, token),
@@ -87,7 +129,7 @@ pub fn get_literal_op(literal: &Literal, token: &Token) -> Op {
     }
 }
 
-pub fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
+fn get_keyword_op(keyword: &Keyword, _token: &Token) -> Option<Op> {
     match keyword {
         Keyword::End => None,
         Keyword::Function => None,
