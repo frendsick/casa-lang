@@ -8,6 +8,7 @@ pub fn generate_ops(tokens: &[Token]) -> Vec<Op> {
     for token in tokens {
         match &token.ty {
             TokenType::Delimiter(_) => {}
+            TokenType::Identifier => todo!(),
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, token)),
             TokenType::Literal(v) => ops.push(get_literal_op(v, token)),
         }

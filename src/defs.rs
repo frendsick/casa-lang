@@ -10,6 +10,7 @@ pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Delimiter(Delimiter),
+    Identifier,
     Intrinsic(Intrinsic),
     Literal(Literal),
 }

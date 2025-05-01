@@ -57,7 +57,7 @@ fn get_next_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Toke
         v if let Ok(intrinsic) = v.parse::<Intrinsic>() => {
             Some(Token::new(value, TokenType::Intrinsic(intrinsic), location))
         }
-        _ => todo!(),
+        _ => Some(Token::new(value, TokenType::Identifier, location)),
     }
 }
 
