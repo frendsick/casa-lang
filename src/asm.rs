@@ -128,6 +128,7 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
     match intrinsic {
         Intrinsic::Add => get_asm_add().to_string(),
         Intrinsic::Syscall3 => get_asm_syscall(3),
+        _ => todo!(),
     }
 }
 
@@ -153,11 +154,11 @@ fn get_asm_add() -> &'static str {
 add %rax, (%rsp)"
 }
 
-fn get_asm_syscall(argc: usize) -> String {
+fn get_asm_syscall(argc: u8) -> String {
     let mut asm = "popq %rax".to_string();
     let argument_registers = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
     for (i, register) in argument_registers.iter().enumerate() {
-        if argc <= i {
+        if usize::from(argc) <= i {
             break;
         }
         asm.push_str(&format!("\npopq %{}", register));

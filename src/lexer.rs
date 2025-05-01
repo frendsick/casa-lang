@@ -75,10 +75,8 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
 
 pub fn get_intrinsic_op(intrinsic: &Intrinsic, token: &Token) -> Op {
     let id = OP_COUNTER.fetch_add();
-    match intrinsic {
-        Intrinsic::Add => Op::new(id, OpType::Intrinsic(intrinsic.clone()), token),
-        Intrinsic::Syscall3 => Op::new(id, OpType::Intrinsic(intrinsic.clone()), token),
-    }
+    let op_type = OpType::Intrinsic(intrinsic.clone());
+    Op::new(id, op_type, token)
 }
 
 pub fn get_literal_op(literal: &Literal, token: &Token) -> Op {
