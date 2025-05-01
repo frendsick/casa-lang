@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use strum_macros::{Display, EnumString};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,22 +37,41 @@ impl Token {
 
 #[derive(Debug, PartialEq)]
 pub enum OpType {
-    Intrinsic,
+    Intrinsic(Intrinsic),
     PushInt,
     PushStr,
 }
 
 #[derive(Debug)]
 pub struct Op {
-    ty: OpType,
-    token: Token,
+    pub id: usize,
+    pub ty: OpType,
+    pub token: Token,
 }
 
 impl Op {
-    pub fn new(ty: OpType, token: &Token) -> Self {
+    pub fn new(id: usize, ty: OpType, token: &Token) -> Self {
         Self {
+            id,
             ty,
             token: token.clone(),
         }
+    }
+}
+
+pub struct Counter {
+    count: AtomicUsize,
+}
+
+impl Counter {
+    pub const fn new() -> Self {
+        Counter {
+            count: AtomicUsize::new(0),
+        }
+    }
+
+    /// Adds to the current value, returning the previous value
+    pub fn fetch_add(&self) -> usize {
+        self.count.fetch_add(1, Ordering::SeqCst)
     }
 }

@@ -1,12 +1,14 @@
-use crate::defs::{Intrinsic, Literal, Op, OpType, Token, TokenType};
+use crate::defs::{Counter, Intrinsic, Literal, Op, OpType, Token, TokenType};
+
+static OP_COUNTER: Counter = Counter::new();
 
 pub fn generate_ops(tokens: &[Token]) -> Vec<Op> {
     let mut ops: Vec<Op> = Vec::new();
 
     for token in tokens {
         match &token.ty {
-            TokenType::Intrinsic(intrinsic) => ops.push(get_intrinsic_op(intrinsic, token)),
-            TokenType::Literal(literal) => ops.push(get_literal_op(literal, token)),
+            TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, token)),
+            TokenType::Literal(v) => ops.push(get_literal_op(v, token)),
         }
     }
 
@@ -15,13 +17,17 @@ pub fn generate_ops(tokens: &[Token]) -> Vec<Op> {
 
 fn get_intrinsic_op(intrinsic: &Intrinsic, token: &Token) -> Op {
     match intrinsic {
-        Intrinsic::Syscall3 => Op::new(OpType::Intrinsic, token),
+        Intrinsic::Syscall3 => Op::new(
+            OP_COUNTER.fetch_add(),
+            OpType::Intrinsic(intrinsic.clone()),
+            token,
+        ),
     }
 }
 
 fn get_literal_op(literal: &Literal, token: &Token) -> Op {
     match literal {
-        Literal::Integer(_) => Op::new(OpType::PushInt, token),
-        Literal::String(_) => Op::new(OpType::PushStr, token),
+        Literal::Integer(_) => Op::new(OP_COUNTER.fetch_add(), OpType::PushInt, token),
+        Literal::String(_) => Op::new(OP_COUNTER.fetch_add(), OpType::PushStr, token),
     }
 }
