@@ -1,6 +1,6 @@
 use crate::defs::{
     Counter, DELIMITERS, Delimiter, Function, Intrinsic, Keyword, Literal, Location, Op, OpType,
-    Segment, Token, TokenType,
+    Parameter, Segment, Signature, Token, TokenType,
 };
 use std::collections::HashMap;
 use std::io;
@@ -81,6 +81,8 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
     let name = parse_until_whitespace_or_delimiter(code, cursor).to_string();
     parse_over_whitespace(code, cursor);
 
+    let signature = parse_function_signature(code, cursor);
+
     let mut ops = Vec::new();
 
     // Function prologue
@@ -114,9 +116,55 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
 
     Some(Function {
         name,
+        signature,
         location,
         ops,
     })
+}
+
+fn parse_function_signature(code: &str, cursor: &mut usize) -> Signature {
+    let params = parse_function_params(code, cursor);
+    let returns = match parse_over_word(code, cursor, "->") {
+        Some(_) => parse_function_return_types(code, cursor),
+        None => Vec::new(),
+    };
+    Signature { params, returns }
+}
+
+fn parse_function_params(code: &str, cursor: &mut usize) -> Vec<Parameter> {
+    let mut params = Vec::new();
+    parse_over_whitespace(code, cursor);
+    while peek_word(code, *cursor, ":").is_none() && peek_word(code, *cursor, "->").is_none() {
+        let name_or_type = parse_until_whitespace_or_delimiter(code, cursor).to_string();
+        let param = match parse_over_word(code, cursor, ":") {
+            None => Parameter {
+                name: None,
+                ty: name_or_type,
+            },
+            Some(_) => {
+                let ty = parse_until_whitespace_or_delimiter(code, cursor);
+                assert!(ty.len() > 0);
+                Parameter {
+                    name: Some(name_or_type),
+                    ty: ty.to_string(),
+                }
+            }
+        };
+        params.push(param);
+        parse_over_whitespace(code, cursor);
+    }
+    params
+}
+
+fn parse_function_return_types(code: &str, cursor: &mut usize) -> Vec<String> {
+    let mut return_types = Vec::new();
+    parse_over_whitespace(code, cursor);
+    while peek_word(code, *cursor, ":").is_none() {
+        let return_type = parse_until_whitespace_or_delimiter(code, cursor);
+        return_types.push(return_type.to_string());
+        parse_over_whitespace(code, cursor);
+    }
+    return_types
 }
 
 fn get_identifier_op(token: &Token) -> Op {
@@ -149,13 +197,22 @@ fn get_unparsed(code: &str, cursor: usize) -> &str {
     &code[cursor..]
 }
 
-fn parse_over_word<'a, 'b>(code: &'a str, cursor: &'a mut usize, word: &'b str) -> Option<&'b str> {
-    let unparsed = get_unparsed(code, *cursor);
+fn peek_word<'a>(code: &'a str, cursor: usize, word: &'a str) -> Option<&'a str> {
+    let unparsed = get_unparsed(code, cursor);
     if unparsed.starts_with(word) {
-        *cursor += word.len();
         Some(word)
     } else {
         None
+    }
+}
+
+fn parse_over_word<'a>(code: &'a str, cursor: &'a mut usize, word: &'a str) -> Option<&'a str> {
+    match peek_word(code, *cursor, word) {
+        Some(word) => {
+            *cursor += word.len();
+            Some(word)
+        }
+        None => None,
     }
 }
 

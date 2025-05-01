@@ -129,8 +129,21 @@ impl Op {
 }
 
 #[derive(Debug)]
+pub struct Parameter {
+    pub name: Option<String>,
+    pub ty: String,
+}
+
+#[derive(Debug)]
+pub struct Signature {
+    pub params: Vec<Parameter>,
+    pub returns: Vec<String>,
+}
+
+#[derive(Debug)]
 pub struct Function {
     pub name: String,
+    pub signature: Signature,
     pub location: Location,
     pub ops: Vec<Op>,
 }
