@@ -1,26 +1,113 @@
-use crate::defs::{DELIMITERS, Intrinsic, Keyword, Literal, Location, Token, TokenType};
+use crate::defs::{
+    Counter, Function, Intrinsic, Keyword, Literal, Location, Op, OpType, Segment, Token, TokenType, DELIMITERS
+};
 use std::io;
 use std::path::PathBuf;
 
+static OP_COUNTER: Counter = Counter::new();
 const NEWLINE: char = 0xA as char;
 
-pub fn parse_tokens_from_file(file: PathBuf) -> io::Result<Vec<Token>> {
+pub fn parse_segments_from_file(file: PathBuf) -> io::Result<Vec<Segment>> {
     let code = std::fs::read_to_string(&file)?;
 
-    let mut tokens = Vec::new();
+    let mut segments = Vec::new();
     let mut cursor = 0;
-    while let Some(token) = get_next_token(&code, &mut cursor, &file) {
-        tokens.push(token);
+    while let Some(segment) = parse_next_segment(&code, &mut cursor, &file) {
+        segments.push(segment);
     }
 
     // Make sure the whole code was parsed
     assert!(cursor >= code.len());
 
-    Ok(tokens)
+    Ok(segments)
+}
+
+fn parse_next_segment(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Segment> {
+    parse_over_whitespace(code, cursor);
+
+    let keyword = peek_until_whitespace_or_delimiter(code, *cursor);
+    match keyword {
+        "function" => {
+            let function = parse_function(code, cursor, file)?;
+            Some(Segment::Function(function))
+        }
+        _ => None,
+    }
+}
+
+fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Function> {
+    let location = get_location(code, *cursor, file);
+
+    assert!(parse_until_whitespace_or_delimiter(code, cursor) == "function");
+    parse_over_whitespace(code, cursor);
+
+    let name = parse_until_whitespace_or_delimiter(code, cursor).to_string();
+    parse_over_whitespace(code, cursor);
+
+    // TODO: Function signature
+
+    let _ = parse_over_word(code, cursor, ":")?;
+
+    let mut ops = Vec::new();
+    while let Some(token) = get_next_token(&code, cursor, &file) {
+        if token.ty == TokenType::Keyword(Keyword::End) {
+            break;
+        }
+        match &token.ty {
+            TokenType::Delimiter(_) => {}
+            TokenType::Identifier => {}
+            TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
+            TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
+            TokenType::Keyword(v) => {
+                if let Some(op) = get_keyword_op(v, &token) {
+                    ops.push(op);
+                }
+            }
+        }
+    }
+
+    Some(Function {
+        name,
+        location,
+        ops,
+    })
+}
+
+pub fn get_intrinsic_op(intrinsic: &Intrinsic, token: &Token) -> Op {
+    let id = OP_COUNTER.fetch_add();
+    match intrinsic {
+        Intrinsic::Add => Op::new(id, OpType::Intrinsic(intrinsic.clone()), token),
+        Intrinsic::Syscall3 => Op::new(id, OpType::Intrinsic(intrinsic.clone()), token),
+    }
+}
+
+pub fn get_literal_op(literal: &Literal, token: &Token) -> Op {
+    let id = OP_COUNTER.fetch_add();
+    match literal {
+        Literal::Integer(_) => Op::new(id, OpType::PushInt, token),
+        Literal::String(_) => Op::new(id, OpType::PushStr, token),
+    }
+}
+
+pub fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
+    match keyword {
+        Keyword::End => None,
+        Keyword::Function => None,
+    }
 }
 
 fn get_unparsed(code: &str, cursor: usize) -> &str {
     &code[cursor..]
+}
+
+fn parse_over_word<'a, 'b>(code: &'a str, cursor: &'a mut usize, word: &'b str) -> Option<&'b str> {
+    let unparsed = get_unparsed(code, *cursor);
+    if unparsed.starts_with(word) {
+        *cursor += word.len();
+        Some(word)
+    } else {
+        None
+    }
 }
 
 fn get_next_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Token> {
@@ -99,17 +186,20 @@ fn parse_over_whitespace(code: &str, cursor: &mut usize) {
     *cursor = code.len();
 }
 
-fn parse_until_whitespace_or_delimiter<'a>(code: &'a str, cursor: &'a mut usize) -> &'a str {
-    let start = *cursor;
-    for (i, char) in code[start..].char_indices() {
+fn peek_until_whitespace_or_delimiter<'a>(code: &'a str, cursor: usize) -> &'a str {
+    for (i, char) in code[cursor..].char_indices() {
         if char.is_whitespace() || DELIMITERS.get(&char).is_some() {
-            *cursor = start + i;
-            return &code[start..start + i];
+            return &code[cursor..cursor + i];
         }
     }
 
-    *cursor = code.len();
-    &code[start..]
+    &code[cursor..]
+}
+
+fn parse_until_whitespace_or_delimiter<'a>(code: &'a str, cursor: &'a mut usize) -> &'a str {
+    let parsed = peek_until_whitespace_or_delimiter(code, *cursor);
+    *cursor += parsed.len();
+    parsed
 }
 
 fn parse_string_literal_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Token> {

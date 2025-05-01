@@ -89,6 +89,18 @@ impl Op {
     }
 }
 
+#[derive(Debug)]
+pub struct Function {
+    pub name: String,
+    pub location: Location,
+    pub ops: Vec<Op>,
+}
+
+#[derive(Debug)]
+pub enum Segment {
+    Function(Function),
+}
+
 pub struct Counter {
     count: AtomicUsize,
 }
