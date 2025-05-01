@@ -64,7 +64,7 @@ fn get_asm_data_section(ops: &[Op]) -> String {
 }
 
 fn get_asm_comment_for_op(op: &Op) -> String {
-    let loc = &op.token.loc;
+    let loc = &op.token.location;
     let file_name = loc.file.file_name().unwrap();
     format!(
         "# {:?} | File: {:?}, Row: {}, Column: {}",

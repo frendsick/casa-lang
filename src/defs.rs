@@ -52,15 +52,15 @@ pub struct Location {
 pub struct Token {
     pub value: String,
     pub ty: TokenType,
-    pub loc: Location,
+    pub location: Location,
 }
 
 impl Token {
-    pub fn new(value: &str, ty: TokenType, loc: Location) -> Self {
+    pub fn new(value: &str, ty: TokenType, location: Location) -> Self {
         Self {
             value: value.to_string(),
             ty,
-            loc,
+            location,
         }
     }
 }
