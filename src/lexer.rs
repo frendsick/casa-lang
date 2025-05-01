@@ -1,4 +1,4 @@
-use crate::defs::{DELIMITERS, Intrinsic, Literal, Location, Token, TokenType};
+use crate::defs::{DELIMITERS, Intrinsic, Keyword, Literal, Location, Token, TokenType};
 use std::io;
 use std::path::PathBuf;
 
@@ -56,6 +56,9 @@ fn get_next_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Toke
         )),
         v if let Ok(intrinsic) = v.parse::<Intrinsic>() => {
             Some(Token::new(value, TokenType::Intrinsic(intrinsic), location))
+        }
+        v if let Ok(keyword) = v.parse::<Keyword>() => {
+            Some(Token::new(value, TokenType::Keyword(keyword), location))
         }
         _ => Some(Token::new(value, TokenType::Identifier, location)),
     }

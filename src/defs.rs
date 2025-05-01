@@ -12,12 +12,20 @@ pub enum TokenType {
     Delimiter(Delimiter),
     Identifier,
     Intrinsic(Intrinsic),
+    Keyword(Keyword),
     Literal(Literal),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Delimiter {
     Colon,
+}
+
+#[derive(Debug, Clone, PartialEq, EnumString, Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum Keyword {
+    End,
+    Function,
 }
 
 #[derive(Debug, Clone, PartialEq)]
