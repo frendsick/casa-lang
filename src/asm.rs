@@ -31,8 +31,8 @@ leaq return_stack(%rip), %r14
     asm_blocks.push(header.to_string());
 
     for op in ops {
-        let op_asm = get_asm_code_for_op(op);
-        asm_blocks.push(op_asm);
+        asm_blocks.push(get_asm_comment_for_op(op));
+        asm_blocks.push(get_asm_code_for_op(op));
     }
 
     let exit_asm = "movq $60, %rax
@@ -61,6 +61,15 @@ fn get_asm_data_section(ops: &[Op]) -> String {
     }
 
     asm_blocks.join("\n")
+}
+
+fn get_asm_comment_for_op(op: &Op) -> String {
+    let loc = &op.token.loc;
+    let file_name = loc.file.file_name().unwrap();
+    format!(
+        "# {:?} | File: {:?}, Row: {}, Column: {}",
+        op.ty, file_name, loc.row, loc.col
+    )
 }
 
 fn get_asm_string_variable(op: &Op) -> String {

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use strum_macros::{Display, EnumString};
@@ -21,16 +22,25 @@ pub enum Intrinsic {
 }
 
 #[derive(Debug, Clone)]
+pub struct Location {
+    pub file: PathBuf,
+    pub row: usize,
+    pub col: usize,
+}
+
+#[derive(Debug, Clone)]
 pub struct Token {
     pub value: String,
     pub ty: TokenType,
+    pub loc: Location,
 }
 
 impl Token {
-    pub fn new(value: &str, ty: TokenType) -> Self {
+    pub fn new(value: &str, ty: TokenType, loc: Location) -> Self {
         Self {
             value: value.to_string(),
             ty,
+            loc,
         }
     }
 }
