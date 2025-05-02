@@ -163,6 +163,7 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
         Intrinsic::Add => get_asm_add().to_string(),
         Intrinsic::And => get_asm_and().to_string(),
         Intrinsic::Div => get_asm_div().to_string(),
+        Intrinsic::Drop => get_asm_drop().to_string(),
         Intrinsic::Dup => get_asm_dup().to_string(),
         Intrinsic::Sub => get_asm_sub().to_string(),
         Intrinsic::Mod => get_asm_mod().to_string(),
