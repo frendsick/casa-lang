@@ -154,7 +154,25 @@ popq (%r14)"
 fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
     match intrinsic {
         Intrinsic::Add => get_asm_add().to_string(),
+        Intrinsic::And => get_asm_and().to_string(),
+        Intrinsic::Div => get_asm_div().to_string(),
+        Intrinsic::Dup => get_asm_dup().to_string(),
+        Intrinsic::Sub => get_asm_sub().to_string(),
+        Intrinsic::Mod => get_asm_mod().to_string(),
+        Intrinsic::Mul => get_asm_mul().to_string(),
+        Intrinsic::Or => get_asm_or().to_string(),
+        Intrinsic::Over => get_asm_over().to_string(),
+        Intrinsic::Rot => get_asm_rot().to_string(),
+        Intrinsic::Shl => get_asm_shl().to_string(),
+        Intrinsic::Shr => get_asm_shr().to_string(),
+        Intrinsic::Swap => get_asm_swap().to_string(),
+        Intrinsic::Syscall0 => get_asm_syscall(0),
+        Intrinsic::Syscall1 => get_asm_syscall(1),
+        Intrinsic::Syscall2 => get_asm_syscall(2),
         Intrinsic::Syscall3 => get_asm_syscall(3),
+        Intrinsic::Syscall4 => get_asm_syscall(4),
+        Intrinsic::Syscall5 => get_asm_syscall(5),
+        Intrinsic::Syscall6 => get_asm_syscall(6),
         _ => todo!(),
     }
 }
@@ -182,7 +200,82 @@ fn get_asm_function_call(function_name: &str) -> String {
 
 fn get_asm_add() -> &'static str {
     "popq %rax
-add %rax, (%rsp)"
+addq %rax, (%rsp)"
+}
+
+fn get_asm_and() -> &'static str {
+    "popq %rax
+andq %rax, (%rsp)"
+}
+
+fn get_asm_div() -> &'static str {
+    "xor %edx, %edx
+popq %rbx
+popq %rax
+divq %rbx
+pushq %rax"
+}
+
+fn get_asm_drop() -> &'static str {
+    "popq %rax"
+}
+
+fn get_asm_dup() -> &'static str {
+    "pushq (%rsp)"
+}
+
+fn get_asm_mod() -> &'static str {
+    "xor %edx, %edx
+popq %rbx
+popq %rax
+divq %rbx
+pushq %rdx"
+}
+
+fn get_asm_mul() -> &'static str {
+    "popq %rax
+popq %rbx
+mulq %rbx
+pushq %rax"
+}
+
+fn get_asm_or() -> &'static str {
+    "popq %rax
+orq %rax, (%rsp)"
+}
+
+fn get_asm_over() -> &'static str {
+    "pushq 8(%rsp)"
+}
+
+fn get_asm_rot() -> &'static str {
+    "popq %rax
+popq %rbx
+popq %rcx
+pushq %rbx
+pushq %rax
+pushq %rcx"
+}
+
+fn get_asm_shl() -> &'static str {
+    "popq %rcx
+shlq %cl, (%rsp)"
+}
+
+fn get_asm_shr() -> &'static str {
+    "popq %rcx
+shrq %cl, (%rsp)"
+}
+
+fn get_asm_sub() -> &'static str {
+    "popq %rax
+subq %rax, (%rsp)"
+}
+
+fn get_asm_swap() -> &'static str {
+    "popq %rax
+pushq (%rsp)
+movq %rax, 8(%rsp)"
 }
 
 fn get_asm_syscall(argc: u8) -> String {
