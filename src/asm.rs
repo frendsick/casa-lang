@@ -115,6 +115,7 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::PushInt => get_asm_push_int(op),
         OpType::PushStr => get_asm_push_str(op, function),
+        OpType::FunctionCall => get_asm_function_call(&op.token.value),
         // All unknown ops should be resolved before assembly generation
         OpType::Unknown => {
             dbg!(op);
@@ -173,6 +174,10 @@ pushq %rsi",
         get_asm_string_variable_name(op, function)
     )
     .to_string()
+}
+
+fn get_asm_function_call(function_name: &str) -> String {
+    format!("call {}", function_name)
 }
 
 fn get_asm_add() -> &'static str {
