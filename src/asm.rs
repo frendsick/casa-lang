@@ -110,12 +110,13 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
 
 fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
     match &op.ty {
+        OpType::FunctionCall => get_asm_function_call(&op.token.value),
         OpType::FunctionEpilogue => get_asm_function_epilogue(function).to_string(),
         OpType::FunctionPrologue => get_asm_function_prologue(function).to_string(),
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::PushInt => get_asm_push_int(op),
         OpType::PushStr => get_asm_push_str(op, function),
-        OpType::FunctionCall => get_asm_function_call(&op.token.value),
+        OpType::Return => get_asm_return(function).to_string(),
         // All unknown ops should be resolved before assembly generation
         OpType::Unknown => {
             dbg!(op);
@@ -192,6 +193,10 @@ pushq %rsi",
         get_asm_string_variable_name(op, function)
     )
     .to_string()
+}
+
+fn get_asm_return(function: &Function) -> &'static str {
+    get_asm_function_epilogue(function)
 }
 
 fn get_asm_function_call(function_name: &str) -> String {

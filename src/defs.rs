@@ -126,6 +126,7 @@ pub enum OpType {
     Intrinsic(Intrinsic),
     PushInt,
     PushStr,
+    Return,
 
     // Must be resolved later
     Unknown,
