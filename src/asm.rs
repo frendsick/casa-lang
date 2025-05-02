@@ -45,14 +45,6 @@ fn get_asm_for_function(function: &Function) -> String {
         asm_blocks.push(get_asm_code_for_op(&op, function));
     }
 
-    if function.name == "main" {
-        let exit_asm = "movq $60, %rax
-popq %rdi
-syscall
-ret";
-        asm_blocks.push(exit_asm.to_string());
-    }
-
     asm_blocks.join("\n")
 }
 
@@ -118,6 +110,8 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
 
 fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
     match &op.ty {
+        OpType::FunctionEpilogue => get_function_epilogue_asm(function).to_string(),
+        OpType::FunctionPrologue => get_function_prologue_asm(function).to_string(),
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::PushInt => get_asm_push_int(op),
         OpType::PushStr => get_asm_push_str(op, function),
@@ -127,6 +121,32 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
             todo!()
         }
         _ => todo!(),
+    }
+}
+
+fn get_function_epilogue_asm(function: &Function) -> &'static str {
+    if function.name == "main" {
+        "movq $60, %rax
+popq %rdi
+syscall
+ret"
+    } else {
+        // TODO: Deallocate variables from stack
+        "pushq (%r14)
+subq $8, %r14
+ret"
+    }
+}
+
+fn get_function_prologue_asm(function: &Function) -> &'static str {
+    if function.name == "main" {
+        "movq %rsp, (args_ptr)
+leaq return_stack(%rip), %r14
+addq $0, %r14"
+    } else {
+        // TODO: Allocate room for variables to the stack
+        "addq $8, %r14
+popq (%r14)"
     }
 }
 

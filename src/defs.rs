@@ -101,6 +101,8 @@ impl Token {
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpType {
     FunctionCall,
+    FunctionEpilogue,
+    FunctionPrologue,
     Intrinsic(Intrinsic),
     PushInt,
     PushStr,

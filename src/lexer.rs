@@ -1,6 +1,6 @@
 use crate::defs::{
-    Counter, DELIMITERS, Function, Intrinsic, Keyword, Literal, Location, Op, OpType, Segment,
-    Token, TokenType,
+    Counter, DELIMITERS, Delimiter, Function, Intrinsic, Keyword, Literal, Location, Op, OpType,
+    Segment, Token, TokenType,
 };
 use std::collections::HashMap;
 use std::io;
@@ -81,20 +81,29 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
     let name = parse_until_whitespace_or_delimiter(code, cursor).to_string();
     parse_over_whitespace(code, cursor);
 
-    // TODO: Function signature
-
-    let _ = parse_over_word(code, cursor, ":")?;
-
     let mut ops = Vec::new();
+
+    // Function prologue
+    // TODO: Ignore prologue for inline functions
+    let prologue_loc = get_location(code, *cursor, file);
+    let colon = parse_over_word(code, cursor, ":")?;
+    let prologue_id = OP_COUNTER.fetch_add();
+    let prologue_token = Token::new(colon, TokenType::Delimiter(Delimiter::Colon), prologue_loc);
+    let prologue = Op::new(prologue_id, OpType::FunctionPrologue, &prologue_token);
+    ops.push(prologue);
+
     while let Some(token) = get_next_token(&code, cursor, &file) {
-        if token.ty == TokenType::Keyword(Keyword::End) {
-            break;
-        }
         match &token.ty {
             TokenType::Delimiter(_) => {}
             TokenType::Identifier => ops.push(get_identifier_op(&token)),
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
+            TokenType::Keyword(Keyword::End) => {
+                // TODO: Ignore epilogue for inline functions
+                let epilogue = Op::new(OP_COUNTER.fetch_add(), OpType::FunctionEpilogue, &token);
+                ops.push(epilogue);
+                break;
+            }
             TokenType::Keyword(v) => {
                 if let Some(op) = get_keyword_op(v, &token) {
                     ops.push(op);
