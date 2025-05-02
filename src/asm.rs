@@ -188,8 +188,10 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
 fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
     assert!(op.ty == OpType::Then);
 
+    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
     let mut nested_ifs = 0;
-    for other_op in function.ops.iter().skip_while(|x| op.id >= x.id) {
+
+    for other_op in &function.ops[op_index + 1..] {
         match other_op.ty {
             OpType::Fi if nested_ifs == 0 => return Some(other_op.id),
             OpType::Fi => nested_ifs -= 1,
@@ -203,8 +205,10 @@ fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
 fn get_related_done_id(op: &Op, function: &Function) -> Option<usize> {
     assert!(op.ty == OpType::Do);
 
+    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
     let mut nested_whiles = 0;
-    for other_op in function.ops.iter().skip_while(|x| op.id >= x.id) {
+
+    for other_op in &function.ops[op_index + 1..] {
         match other_op.ty {
             OpType::Done if nested_whiles == 0 => return Some(other_op.id),
             OpType::Done => nested_whiles -= 1,
@@ -218,8 +222,10 @@ fn get_related_done_id(op: &Op, function: &Function) -> Option<usize> {
 fn get_related_while_id(op: &Op, function: &Function) -> Option<usize> {
     assert!(op.ty == OpType::Done);
 
+    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
     let mut nested_whiles = 0;
-    for other_op in function.ops.iter().rev().skip_while(|x| op.id <= x.id) {
+
+    for other_op in function.ops[..op_index].iter().rev() {
         match other_op.ty {
             OpType::While if nested_whiles == 0 => return Some(other_op.id),
             OpType::Done => nested_whiles += 1,
