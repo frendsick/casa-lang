@@ -28,8 +28,24 @@ pub enum Delimiter {
 #[derive(Debug, Clone, PartialEq, EnumString, Display)]
 #[strum(serialize_all = "lowercase")]
 pub enum Keyword {
+    Break,
+    Cast,
+    Const,
+    Continue,
+    Do,
+    Done,
+    Elif,
+    Else,
+    Endif,
     End,
+    Enum,
+    Fi,
     Function,
+    Inline,
+    Return,
+    Then,
+    Typeof,
+    While,
 }
 
 #[derive(Debug, Clone, PartialEq)]
