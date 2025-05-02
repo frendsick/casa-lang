@@ -138,6 +138,8 @@ pub enum OpType {
     While,
     Do,
     Done,
+    Break,
+    Continue,
 
     // Must be resolved later
     Unknown,

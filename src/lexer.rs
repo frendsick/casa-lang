@@ -185,6 +185,8 @@ fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
     let id = OP_COUNTER.fetch_add();
     match keyword {
         // TODO: Ignore epilogue for inline functions
+        Keyword::Break => Some(Op::new(id, OpType::Break, &token)),
+        Keyword::Continue => Some(Op::new(id, OpType::Continue, &token)),
         Keyword::Do => Some(Op::new(id, OpType::Do, &token)),
         Keyword::Done => Some(Op::new(id, OpType::Done, &token)),
         Keyword::End => Some(Op::new(id, OpType::FunctionEpilogue, &token)),

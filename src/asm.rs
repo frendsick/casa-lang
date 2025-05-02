@@ -110,6 +110,8 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
 
 fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
     match &op.ty {
+        OpType::Break => get_asm_break(op, function),
+        OpType::Continue => get_asm_continue(op, function),
         OpType::Do => get_asm_do(op, function),
         OpType::Done => get_asm_done(op, function),
         OpType::Fi => get_asm_fi(op, function),
@@ -203,7 +205,7 @@ fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
 }
 
 fn get_related_done_id(op: &Op, function: &Function) -> Option<usize> {
-    assert!(op.ty == OpType::Do);
+    assert!(op.ty == OpType::Break || op.ty == OpType::Do);
 
     let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
     let mut nested_whiles = 0;
@@ -220,7 +222,7 @@ fn get_related_done_id(op: &Op, function: &Function) -> Option<usize> {
 }
 
 fn get_related_while_id(op: &Op, function: &Function) -> Option<usize> {
-    assert!(op.ty == OpType::Done);
+    assert!(op.ty == OpType::Continue || op.ty == OpType::Done);
 
     let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
     let mut nested_whiles = 0;
@@ -300,6 +302,24 @@ fn get_asm_done(op: &Op, function: &Function) -> String {
 {}_done{}:",
         function.name, related_id, function.name, op.id
     )
+}
+
+fn get_asm_break(op: &Op, function: &Function) -> String {
+    let related_id = match get_related_done_id(op, function) {
+        Some(id) => id,
+        None => panic!("Related `done` was not found"),
+    };
+
+    format!("jmp {}_done{}", function.name, related_id)
+}
+
+fn get_asm_continue(op: &Op, function: &Function) -> String {
+    let related_id = match get_related_while_id(op, function) {
+        Some(id) => id,
+        None => panic!("Related `while` was not found"),
+    };
+
+    format!("jmp {}_while{}", function.name, related_id)
 }
 
 fn get_asm_return(function: &Function) -> &'static str {
