@@ -110,13 +110,16 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
 
 fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
     match &op.ty {
+        OpType::Fi => get_asm_fi(op, function),
         OpType::FunctionCall => get_asm_function_call(&op.token.value),
         OpType::FunctionEpilogue => get_asm_function_epilogue(function).to_string(),
         OpType::FunctionPrologue => get_asm_function_prologue(function).to_string(),
+        OpType::If => "".to_string(),
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::PushInt => get_asm_push_int(op),
         OpType::PushStr => get_asm_push_str(op, function),
         OpType::Return => get_asm_return(function).to_string(),
+        OpType::Then => get_asm_then(op, function),
         // All unknown ops should be resolved before assembly generation
         OpType::Unknown => {
             dbg!(op);
@@ -178,6 +181,21 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
     }
 }
 
+fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Then);
+
+    let mut nested_ifs = 0;
+    for other_op in function.ops.iter().skip_while(|x| op.id >= x.id) {
+        match other_op.ty {
+            OpType::Fi if nested_ifs == 0 => return Some(other_op.id),
+            OpType::Fi => nested_ifs -= 1,
+            OpType::If => nested_ifs += 1,
+            _ => {}
+        }
+    }
+    None
+}
+
 fn get_asm_push_int(op: &Op) -> String {
     format!(
         "movabs ${}, %rax
@@ -193,6 +211,24 @@ pushq %rsi",
         get_asm_string_variable_name(op, function)
     )
     .to_string()
+}
+
+fn get_asm_fi(op: &Op, function: &Function) -> String {
+    format!("{}_fi{}:", function.name, op.id)
+}
+
+fn get_asm_then(op: &Op, function: &Function) -> String {
+    let related_id = match get_related_fi_id(op, function) {
+        Some(id) => id,
+        None => panic!("Related `fi` was not found"),
+    };
+
+    format!(
+        "popq %rax
+testq %rax, %rax
+jz {}_fi{}",
+        function.name, related_id
+    )
 }
 
 fn get_asm_return(function: &Function) -> &'static str {

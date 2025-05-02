@@ -187,7 +187,10 @@ fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
         // TODO: Ignore epilogue for inline functions
         Keyword::End => Some(Op::new(id, OpType::FunctionEpilogue, &token)),
         Keyword::Function => Some(Op::new(id, OpType::FunctionPrologue, &token)),
+        Keyword::Fi => Some(Op::new(id, OpType::Fi, &token)),
+        Keyword::If => Some(Op::new(id, OpType::If, &token)),
         Keyword::Return => Some(Op::new(id, OpType::Return, &token)),
+        Keyword::Then => Some(Op::new(id, OpType::Then, &token)),
         _ => todo!(),
     }
 }

@@ -41,6 +41,7 @@ pub enum Keyword {
     Enum,
     Fi,
     Function,
+    If,
     Inline,
     Return,
     Then,
@@ -127,6 +128,11 @@ pub enum OpType {
     PushInt,
     PushStr,
     Return,
+
+    // If block
+    If,
+    Then,
+    Fi,
 
     // Must be resolved later
     Unknown,
