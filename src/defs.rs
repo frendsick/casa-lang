@@ -154,6 +154,11 @@ pub struct Parameter {
     pub ty: String,
 }
 
+/// # Examples
+///
+/// `str`
+/// `str int -> bool`
+/// `num1:int num2:int -> int bool`
 #[derive(Debug)]
 pub struct Signature {
     pub params: Vec<Parameter>,
