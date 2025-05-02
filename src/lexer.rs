@@ -7,7 +7,6 @@ use std::io;
 use std::path::PathBuf;
 
 static OP_COUNTER: Counter = Counter::new();
-const NEWLINE: char = 0xA as char;
 
 pub fn parse_segments_from_file(file: PathBuf) -> io::Result<Vec<Segment>> {
     let code = std::fs::read_to_string(&file)?;
@@ -264,7 +263,7 @@ fn get_location(code: &str, cursor: usize, file: &PathBuf) -> Location {
         if i >= cursor {
             break;
         }
-        if char == NEWLINE {
+        if char == '\n' {
             row += 1;
             last_line_start_index = i + char.len_utf8();
         }
@@ -319,7 +318,7 @@ fn parse_string_literal_token(code: &str, cursor: &mut usize, file: &PathBuf) ->
 
     for (index, char) in chars {
         match char {
-            NEWLINE => return None,
+            '\n' => return None,
             '"' => {
                 // Save literal value without the double quotes
                 let value = &unparsed[1..index];
