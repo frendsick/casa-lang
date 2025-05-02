@@ -110,6 +110,8 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
 
 fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
     match &op.ty {
+        OpType::Do => get_asm_do(op, function),
+        OpType::Done => get_asm_done(op, function),
         OpType::Fi => get_asm_fi(op, function),
         OpType::FunctionCall => get_asm_function_call(&op.token.value),
         OpType::FunctionEpilogue => get_asm_function_epilogue(function).to_string(),
@@ -120,6 +122,7 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
         OpType::PushStr => get_asm_push_str(op, function),
         OpType::Return => get_asm_return(function).to_string(),
         OpType::Then => get_asm_then(op, function),
+        OpType::While => get_asm_while(op, function),
         // All unknown ops should be resolved before assembly generation
         OpType::Unknown => {
             dbg!(op);
@@ -196,6 +199,36 @@ fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
     None
 }
 
+fn get_related_done_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Do);
+
+    let mut nested_whiles = 0;
+    for other_op in function.ops.iter().skip_while(|x| op.id >= x.id) {
+        match other_op.ty {
+            OpType::Done if nested_whiles == 0 => return Some(other_op.id),
+            OpType::Done => nested_whiles -= 1,
+            OpType::While => nested_whiles += 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+fn get_related_while_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Done);
+
+    let mut nested_whiles = 0;
+    for other_op in function.ops.iter().rev().skip_while(|x| op.id <= x.id) {
+        match other_op.ty {
+            OpType::While if nested_whiles == 0 => return Some(other_op.id),
+            OpType::Done => nested_whiles += 1,
+            OpType::While => nested_whiles -= 1,
+            _ => {}
+        }
+    }
+    None
+}
+
 fn get_asm_push_int(op: &Op) -> String {
     format!(
         "movabs ${}, %rax
@@ -228,6 +261,37 @@ fn get_asm_then(op: &Op, function: &Function) -> String {
 testq %rax, %rax
 jz {}_fi{}",
         function.name, related_id
+    )
+}
+
+fn get_asm_while(op: &Op, function: &Function) -> String {
+    format!("{}_while{}:", function.name, op.id)
+}
+
+fn get_asm_do(op: &Op, function: &Function) -> String {
+    let related_id = match get_related_done_id(op, function) {
+        Some(id) => id,
+        None => panic!("Related `done` was not found"),
+    };
+
+    format!(
+        "popq %rax
+testq %rax, %rax
+jz {}_done{}",
+        function.name, related_id
+    )
+}
+
+fn get_asm_done(op: &Op, function: &Function) -> String {
+    let related_id = match get_related_while_id(op, function) {
+        Some(id) => id,
+        None => panic!("Related `while` was not found"),
+    };
+
+    format!(
+        "jmp {}_while{}
+{}_done{}:",
+        function.name, related_id, function.name, op.id
     )
 }
 

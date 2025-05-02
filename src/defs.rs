@@ -134,6 +134,11 @@ pub enum OpType {
     Then,
     Fi,
 
+    // While block
+    While,
+    Do,
+    Done,
+
     // Must be resolved later
     Unknown,
 }
