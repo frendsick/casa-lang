@@ -394,5 +394,6 @@ fn get_asm_syscall(argc: u8) -> String {
         asm.push_str(&format!("\npopq %{}", register));
     }
     asm.push_str("\nsyscall");
+    asm.push_str("\npushq %rax");
     asm
 }
