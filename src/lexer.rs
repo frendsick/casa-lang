@@ -73,42 +73,38 @@ fn resolve_identifiers_for_function(
 }
 
 fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Function> {
-    let location = get_location(code, *cursor, file);
+    let mut ops = Vec::new();
 
-    assert!(parse_until_whitespace_or_delimiter(code, cursor) == "function");
+    // "function"
+    let location = get_location(code, *cursor, file);
+    let function_token = get_next_token(code, cursor, file)?;
+    assert!(function_token.value == "function");
+    let id = OP_COUNTER.fetch_add();
+    let prologue = Op::new(id, OpType::FunctionPrologue, &function_token);
+    ops.push(prologue);
     parse_over_whitespace(code, cursor);
 
+    // Function name
     let name = parse_until_whitespace_or_delimiter(code, cursor).to_string();
     parse_over_whitespace(code, cursor);
 
+    // Function signature
     let signature = parse_function_signature(code, cursor);
+    parse_over_word(code, cursor, ":");
 
-    let mut ops = Vec::new();
-
-    // Function prologue
-    // TODO: Ignore prologue for inline functions
-    let prologue_loc = get_location(code, *cursor, file);
-    let colon = parse_over_word(code, cursor, ":")?;
-    let prologue_id = OP_COUNTER.fetch_add();
-    let prologue_token = Token::new(colon, TokenType::Delimiter(Delimiter::Colon), prologue_loc);
-    let prologue = Op::new(prologue_id, OpType::FunctionPrologue, &prologue_token);
-    ops.push(prologue);
-
+    // Function tokens
     while let Some(token) = get_next_token(&code, cursor, &file) {
         match &token.ty {
             TokenType::Delimiter(_) => {}
             TokenType::Identifier => ops.push(get_identifier_op(&token)),
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
-            TokenType::Keyword(Keyword::End) => {
-                // TODO: Ignore epilogue for inline functions
-                let epilogue = Op::new(OP_COUNTER.fetch_add(), OpType::FunctionEpilogue, &token);
-                ops.push(epilogue);
-                break;
-            }
             TokenType::Keyword(v) => {
                 if let Some(op) = get_keyword_op(v, &token) {
                     ops.push(op);
+                }
+                if *v == Keyword::End {
+                    break;
                 }
             }
         }
@@ -186,10 +182,13 @@ fn get_literal_op(literal: &Literal, token: &Token) -> Op {
     }
 }
 
-fn get_keyword_op(keyword: &Keyword, _token: &Token) -> Option<Op> {
+fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
+    let id = OP_COUNTER.fetch_add();
     match keyword {
-        Keyword::End => None,
-        Keyword::Function => None,
+        // TODO: Ignore epilogue for inline functions
+        Keyword::End => Some(Op::new(id, OpType::FunctionEpilogue, &token)),
+        Keyword::Function => Some(Op::new(id, OpType::FunctionPrologue, &token)),
+        _ => todo!(),
     }
 }
 
