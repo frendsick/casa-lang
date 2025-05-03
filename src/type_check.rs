@@ -22,7 +22,7 @@ struct TypeNode {
 }
 
 trait TypeStack {
-    fn from(parameters: &[Parameter], location: &Location) -> Vec<TypeNode>;
+    fn from(types: &[String], location: &Location) -> Vec<TypeNode>;
     fn peek_nth(&self, n: usize) -> Result<&TypeNode, TypeCheckError>;
     fn peek_stack(&self) -> Result<&TypeNode, TypeCheckError>;
     fn peek_type(&self, expected_type: &str) -> Result<(), TypeCheckError>;
@@ -33,9 +33,8 @@ trait TypeStack {
 }
 
 impl TypeStack for Vec<TypeNode> {
-    fn from(parameters: &[Parameter], location: &Location) -> Vec<TypeNode> {
-        parameters
-            .get_types()
+    fn from(types: &[String], location: &Location) -> Vec<TypeNode> {
+        types
             .iter()
             .map(|ty| TypeNode {
                 ty: ty.to_string(),
@@ -102,8 +101,13 @@ fn type_check_function(
     function: &Function,
     global_identifiers: &IdentifierTable,
 ) -> Result<(), TypeCheckError> {
-    let mut type_stack =
-        <Vec<TypeNode> as TypeStack>::from(&function.signature.params, &function.location);
+    let mut type_stack = <Vec<TypeNode> as TypeStack>::from(
+        &function.signature.params.get_types(),
+        &function.location,
+    );
+    let return_stack =
+        <Vec<TypeNode> as TypeStack>::from(&function.signature.returns, &function.location);
+
     let mut variables = IndexMap::new();
     let mut peek_index = 0;
     let mut op_index = 0;
@@ -118,17 +122,10 @@ fn type_check_function(
         None,
     )?;
 
-    // Pop return types
-    for return_type in &function.signature.returns {
-        type_stack.pop_type(&return_type)?;
-    }
-
-    // Verify that stack is empty after function return
-    if type_stack.len() != 0 {
-        return Err(TypeCheckError::InvalidSignature);
-    }
-
-    Ok(())
+    // Verify that stack matches the function's return types
+    matching_stacks(&type_stack, &return_stack)
+        .then(|| ())
+        .ok_or(TypeCheckError::InvalidSignature)
 }
 
 fn type_check_ops(
