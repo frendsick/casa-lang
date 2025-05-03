@@ -211,12 +211,6 @@ pub struct Signature {
 }
 
 #[derive(Debug, Clone)]
-pub struct Variable {
-    pub name: String,
-    pub ty: Option<String>,
-}
-
-#[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
     pub signature: Signature,
