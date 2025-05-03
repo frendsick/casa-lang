@@ -21,6 +21,7 @@ struct TypeNode {
 
 trait TypeStack {
     fn from(parameters: &[Parameter], location: &Location) -> Vec<TypeNode>;
+    fn peek_nth(&self, n: usize) -> Result<&TypeNode, TypeCheckError>;
     fn peek_stack(&self) -> Result<&TypeNode, TypeCheckError>;
     fn peek_type(&self, expected_type: &str) -> Result<(), TypeCheckError>;
     fn pop_stack(&mut self) -> Result<TypeNode, TypeCheckError>;
@@ -39,6 +40,13 @@ impl TypeStack for Vec<TypeNode> {
                 location: location.clone(),
             })
             .collect()
+    }
+
+    fn peek_nth(&self, n: usize) -> Result<&TypeNode, TypeCheckError> {
+        self.iter()
+            .rev()
+            .nth(n)
+            .ok_or(TypeCheckError::StackUnderflow)
     }
 
     fn peek_stack(&self) -> Result<&TypeNode, TypeCheckError> {
@@ -95,11 +103,12 @@ fn type_check_function(
     let mut type_stack =
         <Vec<TypeNode> as TypeStack>::from(&function.signature.params, &function.location);
     let mut variables = IndexMap::new();
+    let mut peek_index = 0;
 
     for op in &function.ops {
         dbg!(&op);
         match &op.ty {
-            OpType::Bind => {}
+            OpType::Bind => peek_index = 0,
             OpType::FunctionCall | OpType::InlineFunctionCall => {
                 match global_identifiers.get(&op.token.value) {
                     Some(Identifier::Function(function)) => {
@@ -112,6 +121,11 @@ fn type_check_function(
             OpType::FunctionPrologue => {}
             OpType::Intrinsic(intrinsic) => {
                 type_check_intrinsic(&mut type_stack, &op.token.location, intrinsic)?
+            }
+            OpType::Peek => {}
+            OpType::PeekBind => {
+                type_check_peek_bind(&mut type_stack, &mut variables, &op.token.value, peek_index)?;
+                peek_index += 1;
             }
             OpType::PushBind => type_check_push_bind(
                 &mut type_stack,
@@ -167,6 +181,17 @@ fn type_check_push_bind(
         None => Err(TypeCheckError::UnknownIdentifier)?,
     };
     type_stack.push_type(ty, location);
+    Ok(())
+}
+
+fn type_check_peek_bind(
+    type_stack: &mut Vec<TypeNode>,
+    variables: &mut IndexMap<String, String>,
+    variable_name: &str,
+    peek_index: usize,
+) -> Result<(), TypeCheckError> {
+    let node = type_stack.peek_nth(peek_index)?;
+    variables.insert(variable_name.to_string(), node.ty.clone());
     Ok(())
 }
 
