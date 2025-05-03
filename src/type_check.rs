@@ -105,48 +105,13 @@ fn type_check_function(
     let mut variables = IndexMap::new();
     let mut peek_index = 0;
 
-    for op in &function.ops {
-        dbg!(&op);
-        match &op.ty {
-            OpType::Bind => peek_index = 0,
-            OpType::FunctionCall | OpType::InlineFunctionCall => {
-                match global_identifiers.get(&op.token.value) {
-                    Some(Identifier::Function(function)) => {
-                        type_check_function_call(&mut type_stack, &op.token.location, function)?;
-                    }
-                    _ => Err(TypeCheckError::UnknownIdentifier)?,
-                }
-            }
-            OpType::FunctionEpilogue => {}
-            OpType::FunctionPrologue => {}
-            OpType::Intrinsic(intrinsic) => {
-                type_check_intrinsic(&mut type_stack, &op.token.location, intrinsic)?
-            }
-            OpType::Peek => {}
-            OpType::PeekBind => {
-                type_check_peek_bind(&mut type_stack, &mut variables, &op.token.value, peek_index)?;
-                peek_index += 1;
-            }
-            OpType::PushBind => type_check_push_bind(
-                &mut type_stack,
-                &variables,
-                &op.token.location,
-                &op.token.value,
-            )?,
-            OpType::PushInt => type_stack.push_type("int", &op.token.location),
-            OpType::PushStr => type_stack.push_type("str", &op.token.location),
-            OpType::Take => {}
-            OpType::TakeBind => {
-                type_check_take_bind(&mut type_stack, &mut variables, &op.token.value)?
-            }
-            // All unknown ops should be resolved before type checking
-            OpType::Unknown => {
-                dbg!(op);
-                todo!()
-            }
-            _ => todo!(),
-        }
-    }
+    type_check_ops(
+        &mut type_stack,
+        &mut variables,
+        &mut peek_index,
+        &function.ops,
+        global_identifiers,
+    )?;
 
     // Pop return types
     for return_type in &function.signature.returns {
@@ -158,6 +123,52 @@ fn type_check_function(
         return Err(TypeCheckError::InvalidSignature);
     }
 
+    Ok(())
+}
+
+fn type_check_ops(
+    type_stack: &mut Vec<TypeNode>,
+    variables: &mut IndexMap<String, String>,
+    peek_index: &mut usize,
+    ops: &[Op],
+    global_identifiers: &IdentifierTable,
+) -> Result<(), TypeCheckError> {
+    for op in ops {
+        match &op.ty {
+            OpType::Bind => *peek_index = 0,
+            OpType::FunctionCall | OpType::InlineFunctionCall => {
+                match global_identifiers.get(&op.token.value) {
+                    Some(Identifier::Function(function)) => {
+                        type_check_function_call(type_stack, &op.token.location, &function)?;
+                    }
+                    _ => Err(TypeCheckError::UnknownIdentifier)?,
+                }
+            }
+            OpType::FunctionEpilogue => {}
+            OpType::FunctionPrologue => {}
+            OpType::Intrinsic(intrinsic) => {
+                type_check_intrinsic(type_stack, &op.token.location, &intrinsic)?
+            }
+            OpType::Peek => {}
+            OpType::PeekBind => {
+                type_check_peek_bind(type_stack, variables, &op.token.value, *peek_index)?;
+                *peek_index += 1;
+            }
+            OpType::PushBind => {
+                type_check_push_bind(type_stack, &variables, &op.token.location, &op.token.value)?
+            }
+            OpType::PushInt => type_stack.push_type("int", &op.token.location),
+            OpType::PushStr => type_stack.push_type("str", &op.token.location),
+            OpType::Take => {}
+            OpType::TakeBind => type_check_take_bind(type_stack, variables, &op.token.value)?,
+            // All unknown ops should be resolved before type checking
+            OpType::Unknown => {
+                dbg!(op);
+                todo!()
+            }
+            _ => todo!(),
+        }
+    }
     Ok(())
 }
 
