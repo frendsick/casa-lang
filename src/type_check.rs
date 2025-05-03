@@ -9,7 +9,7 @@ use crate::common::{
 pub enum TypeCheckError {
     BranchModifiedStack,
     InvalidSignature,
-    InvalidStackReturn,
+    InvalidStackState,
     StackUnderflow,
     SyntaxError,
     UnknownIdentifier,
@@ -145,6 +145,10 @@ fn type_check_ops(
         *op_index += 1;
         match &op.ty {
             OpType::Bind => *peek_index = 0,
+            OpType::Continue => match stack_before_branch {
+                Some(stack) => type_check_continue(&type_stack, stack)?,
+                None => Err(TypeCheckError::SyntaxError)?,
+            },
             OpType::Do => match stack_before_branch {
                 Some(stack) => type_check_do(type_stack, stack)?,
                 None => Err(TypeCheckError::SyntaxError)?,
@@ -183,7 +187,7 @@ fn type_check_ops(
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
             OpType::Return => matching_stacks(&type_stack, return_stack)
                 .then(|| ())
-                .ok_or(TypeCheckError::InvalidStackReturn)?,
+                .ok_or(TypeCheckError::InvalidStackState)?,
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(type_stack, variables, &op.token.value)?,
             OpType::Then => {
@@ -220,6 +224,15 @@ fn type_check_ops(
         }
     }
     Ok(())
+}
+
+fn type_check_continue(
+    type_stack: &[TypeNode],
+    stack_before_while: &[TypeNode],
+) -> Result<(), TypeCheckError> {
+    matching_stacks(type_stack, stack_before_while)
+        .then(|| ())
+        .ok_or(TypeCheckError::InvalidStackState)
 }
 
 fn type_check_do(
