@@ -32,6 +32,7 @@ fn type_check_function(
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
             OpType::PushInt => type_stack.push("int".to_string()),
+            OpType::PushStr => type_stack.push("str".to_string()),
             _ => todo!(),
         }
     }
