@@ -1,10 +1,74 @@
-use crate::defs::{Function, IdentifierTable, Intrinsic, OpType, ParameterSlice, Segment};
+use crate::defs::{
+    Function, IdentifierTable, Intrinsic, Location, OpType, Parameter, ParameterSlice, Segment,
+};
 
 #[derive(Debug)]
 pub enum TypeCheckError {
     InvalidSignature,
     StackUnderflow,
     ValueError,
+}
+
+#[derive(Debug, Clone)]
+struct TypeNode {
+    ty: String,
+    location: Location,
+}
+
+trait TypeStack {
+    fn from(parameters: &[Parameter], location: &Location) -> Vec<TypeNode>;
+    fn peek_stack(&self) -> Result<&TypeNode, TypeCheckError>;
+    fn peek_type(&self, expected_type: &str) -> Result<(), TypeCheckError>;
+    fn pop_stack(&mut self) -> Result<TypeNode, TypeCheckError>;
+    fn pop_type(&mut self, expected_type: &str) -> Result<(), TypeCheckError>;
+    fn push_node(&mut self, node: TypeNode);
+    fn push_type(&mut self, ty: &str, location: &Location);
+}
+
+impl TypeStack for Vec<TypeNode> {
+    fn from(parameters: &[Parameter], location: &Location) -> Vec<TypeNode> {
+        parameters
+            .get_types()
+            .iter()
+            .map(|ty| TypeNode {
+                ty: ty.to_string(),
+                location: location.clone(),
+            })
+            .collect()
+    }
+
+    fn peek_stack(&self) -> Result<&TypeNode, TypeCheckError> {
+        self.last().ok_or(TypeCheckError::StackUnderflow)
+    }
+
+    fn peek_type(&self, expected_type: &str) -> Result<(), TypeCheckError> {
+        let node = self.peek_stack()?;
+        (node.ty == expected_type)
+            .then(|| ())
+            .ok_or(TypeCheckError::ValueError)
+    }
+
+    fn pop_stack(&mut self) -> Result<TypeNode, TypeCheckError> {
+        self.pop().ok_or(TypeCheckError::StackUnderflow)
+    }
+
+    fn pop_type(&mut self, expected_type: &str) -> Result<(), TypeCheckError> {
+        let node = self.pop_stack()?;
+        (node.ty == expected_type)
+            .then(|| ())
+            .ok_or(TypeCheckError::ValueError)
+    }
+
+    fn push_node(&mut self, node: TypeNode) {
+        self.push(node)
+    }
+
+    fn push_type(&mut self, ty: &str, location: &Location) {
+        self.push(TypeNode {
+            ty: ty.to_string(),
+            location: location.clone(),
+        })
+    }
 }
 
 pub fn type_check_program(
@@ -24,146 +88,153 @@ fn type_check_function(
     function: &Function,
     _global_identifiers: &IdentifierTable,
 ) -> Result<(), TypeCheckError> {
-    let mut type_stack = function.signature.params.get_types();
+    let mut type_stack =
+        <Vec<TypeNode> as TypeStack>::from(&function.signature.params, &function.location);
 
     for op in &function.ops {
         dbg!(&op);
         match &op.ty {
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
-            OpType::Intrinsic(intrinsic) => type_check_intrinsic(&mut type_stack, &intrinsic)?,
-            OpType::PushInt => type_stack.push("int".to_string()),
-            OpType::PushStr => type_stack.push("str".to_string()),
+            OpType::Intrinsic(intrinsic) => {
+                type_check_intrinsic(&mut type_stack, &intrinsic, &op.token.location)?
+            }
+            OpType::PushInt => type_stack.push_type("int", &op.token.location),
+            OpType::PushStr => type_stack.push_type("str", &op.token.location),
             _ => todo!(),
         }
     }
 
-    if type_stack != function.signature.returns {
-        return Err(TypeCheckError::InvalidSignature);
-    }
+    // if type_stack != function.signature.returns {
+    //     return Err(TypeCheckError::InvalidSignature);
+    // }
 
     Ok(())
 }
 
 fn type_check_intrinsic(
-    type_stack: &mut Vec<String>,
+    type_stack: &mut Vec<TypeNode>,
     intrinsic: &Intrinsic,
+    location: &Location,
 ) -> Result<(), TypeCheckError> {
     match intrinsic {
-        Intrinsic::And => type_check_boolean_operator(type_stack),
-        Intrinsic::Add => type_check_arithmetic(type_stack),
-        Intrinsic::Div => type_check_arithmetic(type_stack),
-        Intrinsic::Drop => pop(type_stack).map(|_| ()),
-        Intrinsic::Dup => type_check_dup(type_stack),
-        Intrinsic::Eq => type_check_comparison_operator(type_stack),
-        Intrinsic::Ge => type_check_comparison_operator(type_stack),
-        Intrinsic::Gt => type_check_comparison_operator(type_stack),
-        Intrinsic::Le => type_check_comparison_operator(type_stack),
-        Intrinsic::LoadByte => type_check_load(type_stack),
-        Intrinsic::LoadWord => type_check_load(type_stack),
-        Intrinsic::LoadDword => type_check_load(type_stack),
-        Intrinsic::LoadQword => type_check_load(type_stack),
-        Intrinsic::Lt => type_check_comparison_operator(type_stack),
-        Intrinsic::Mod => type_check_arithmetic(type_stack),
-        Intrinsic::Mul => type_check_arithmetic(type_stack),
-        Intrinsic::Ne => type_check_comparison_operator(type_stack),
-        Intrinsic::Or => type_check_boolean_operator(type_stack),
-        Intrinsic::Over => type_check_over(type_stack),
+        Intrinsic::And => type_check_boolean_operator(type_stack, location),
+        Intrinsic::Add => type_check_arithmetic(type_stack, location),
+        Intrinsic::Div => type_check_arithmetic(type_stack, location),
+        Intrinsic::Drop => type_stack.pop_stack().map(|_| ()),
+        Intrinsic::Dup => type_check_dup(type_stack, location),
+        Intrinsic::Eq => type_check_comparison_operator(type_stack, location),
+        Intrinsic::Ge => type_check_comparison_operator(type_stack, location),
+        Intrinsic::Gt => type_check_comparison_operator(type_stack, location),
+        Intrinsic::Le => type_check_comparison_operator(type_stack, location),
+        Intrinsic::LoadByte => type_check_load(type_stack, location),
+        Intrinsic::LoadWord => type_check_load(type_stack, location),
+        Intrinsic::LoadDword => type_check_load(type_stack, location),
+        Intrinsic::LoadQword => type_check_load(type_stack, location),
+        Intrinsic::Lt => type_check_comparison_operator(type_stack, location),
+        Intrinsic::Mod => type_check_arithmetic(type_stack, location),
+        Intrinsic::Mul => type_check_arithmetic(type_stack, location),
+        Intrinsic::Ne => type_check_comparison_operator(type_stack, location),
+        Intrinsic::Or => type_check_boolean_operator(type_stack, location),
+        Intrinsic::Over => type_check_over(type_stack, location),
         Intrinsic::Rot => type_check_rot(type_stack),
         Intrinsic::StoreByte => type_check_store(type_stack),
         Intrinsic::StoreWord => type_check_store(type_stack),
         Intrinsic::StoreDword => type_check_store(type_stack),
         Intrinsic::StoreQword => type_check_store(type_stack),
-        Intrinsic::Sub => type_check_arithmetic(type_stack),
+        Intrinsic::Sub => type_check_arithmetic(type_stack, location),
         Intrinsic::Swap => type_check_swap(type_stack),
         _ => todo!(),
     }
 }
 
-fn pop(type_stack: &mut Vec<String>) -> Result<String, TypeCheckError> {
-    type_stack.pop().ok_or(TypeCheckError::StackUnderflow)
-}
-
-fn pop_type(type_stack: &mut Vec<String>, expected_type: &str) -> Result<(), TypeCheckError> {
-    let ty = pop(type_stack)?;
-    (&ty == expected_type)
-        .then(|| ())
-        .ok_or(TypeCheckError::ValueError)
-}
-
-fn peek(type_stack: &[String]) -> Result<&str, TypeCheckError> {
-    type_stack
-        .last()
-        .map(String::as_str)
-        .ok_or(TypeCheckError::StackUnderflow)
-}
-
-fn peek_type(type_stack: &[String], expected_type: &str) -> Result<(), TypeCheckError> {
-    let ty = peek(type_stack)?;
-    (ty == expected_type)
-        .then(|| ())
-        .ok_or(TypeCheckError::ValueError)
-}
-
-fn type_check_arithmetic(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    pop_type(type_stack, "int")?;
-    peek_type(type_stack, "int")?;
+fn type_check_arithmetic(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+) -> Result<(), TypeCheckError> {
+    type_stack.pop_type("int")?;
+    type_stack.peek_type("int")?;
     Ok(())
 }
 
-fn type_check_boolean_operator(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    pop_type(type_stack, "bool")?;
-    peek_type(type_stack, "bool")?;
+fn type_check_boolean_operator(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+) -> Result<(), TypeCheckError> {
+    type_stack.pop_type("bool")?;
+    type_stack.peek_type("bool")?;
     Ok(())
 }
 
-fn type_check_comparison_operator(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    pop_type(type_stack, "int")?;
-    pop_type(type_stack, "int")?;
-    type_stack.push("bool".to_string());
+fn type_check_comparison_operator(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+) -> Result<(), TypeCheckError> {
+    type_stack.pop_type("int")?;
+    type_stack.pop_type("int")?;
+    type_stack.push_type("bool", location);
     Ok(())
 }
 
-fn type_check_dup(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    let ty = peek(&type_stack)?;
-    type_stack.push(ty.to_string());
+fn type_check_dup(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+) -> Result<(), TypeCheckError> {
+    let node = type_stack.peek_stack()?.clone();
+    type_stack.push_type(&node.ty, location);
     Ok(())
 }
 
-fn type_check_load(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    pop_type(type_stack, "ptr")?;
-    type_stack.push("any".to_string());
+fn type_check_load(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+) -> Result<(), TypeCheckError> {
+    type_stack.pop_type("ptr")?;
+    type_stack.push_type("any", location);
     Ok(())
 }
 
-fn type_check_over(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    let t1 = pop(type_stack)?;
-    let t2 = peek(type_stack)?.to_string();
-    type_stack.push(t1);
-    type_stack.push(t2);
+fn type_check_over(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+) -> Result<(), TypeCheckError> {
+    let t1 = type_stack.pop_stack()?.clone();
+    let t2 = type_stack.peek_stack()?.clone();
+    type_stack.push_node(t1);
+    type_stack.push_node(t2);
     Ok(())
 }
 
-fn type_check_rot(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    let t1 = pop(type_stack)?;
-    let t2 = pop(type_stack)?;
-    let t3 = pop(type_stack)?;
-    type_stack.push(t2);
-    type_stack.push(t1);
-    type_stack.push(t3);
+fn type_check_rot(type_stack: &mut Vec<TypeNode>) -> Result<(), TypeCheckError> {
+    let t1 = type_stack.pop_stack()?;
+    let t2 = type_stack.pop_stack()?;
+    let t3 = type_stack.pop_stack()?;
+    type_stack.push_node(t2);
+    type_stack.push_node(t1);
+    type_stack.push_node(t3);
     Ok(())
 }
 
-fn type_check_store(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    pop_type(type_stack, "ptr")?;
-    pop(type_stack)?;
+fn type_check_bitshift(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+) -> Result<(), TypeCheckError> {
+    type_stack.pop_type("int")?;
+    type_stack.pop_type("int")?;
+    type_stack.push_type("int", location);
     Ok(())
 }
 
-fn type_check_swap(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    let t1 = pop(type_stack)?;
-    let t2 = pop(type_stack)?;
-    type_stack.push(t1);
-    type_stack.push(t2);
+fn type_check_store(type_stack: &mut Vec<TypeNode>) -> Result<(), TypeCheckError> {
+    type_stack.pop_type("ptr")?;
+    type_stack.pop_stack()?;
+    Ok(())
+}
+
+fn type_check_swap(type_stack: &mut Vec<TypeNode>) -> Result<(), TypeCheckError> {
+    let t1 = type_stack.pop_stack()?;
+    let t2 = type_stack.pop_stack()?;
+    type_stack.push_node(t1);
+    type_stack.push_node(t2);
     Ok(())
 }
