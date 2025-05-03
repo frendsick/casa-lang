@@ -9,6 +9,7 @@ use crate::defs::{
 pub enum TypeCheckError {
     BranchModifiedStack,
     InvalidSignature,
+    InvalidStackReturn,
     StackUnderflow,
     SyntaxError,
     UnknownIdentifier,
@@ -118,6 +119,7 @@ fn type_check_function(
         &mut op_index,
         &mut peek_index,
         &function.ops,
+        &return_stack,
         global_identifiers,
         None,
     )?;
@@ -134,6 +136,7 @@ fn type_check_ops(
     op_index: &mut usize,
     peek_index: &mut usize,
     ops: &[Op],
+    return_stack: &[TypeNode],
     global_identifiers: &IdentifierTable,
     stack_before_branch: Option<&[TypeNode]>,
 ) -> Result<(), TypeCheckError> {
@@ -178,6 +181,9 @@ fn type_check_ops(
             }
             OpType::PushInt => type_stack.push_type("int", &op.token.location),
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
+            OpType::Return => matching_stacks(&type_stack, return_stack)
+                .then(|| ())
+                .ok_or(TypeCheckError::InvalidStackReturn)?,
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(type_stack, variables, &op.token.value)?,
             OpType::Then => {
@@ -188,6 +194,7 @@ fn type_check_ops(
                     op_index,
                     peek_index,
                     ops,
+                    return_stack,
                     global_identifiers,
                     Some(&type_stack.clone()),
                 )?;
@@ -199,6 +206,7 @@ fn type_check_ops(
                     op_index,
                     peek_index,
                     ops,
+                    return_stack,
                     global_identifiers,
                     Some(&type_stack.clone()),
                 )?;
