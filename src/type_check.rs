@@ -52,13 +52,17 @@ fn type_check_intrinsic(
     match intrinsic {
         Intrinsic::And => type_check_boolean_operator(type_stack),
         Intrinsic::Add => type_check_arithmetic(type_stack),
+        Intrinsic::Div => type_check_arithmetic(type_stack),
         Intrinsic::Drop => pop(type_stack).map(|_| ()),
         Intrinsic::Dup => type_check_dup(type_stack),
-        Intrinsic::Div => type_check_arithmetic(type_stack),
         Intrinsic::Eq => type_check_comparison_operator(type_stack),
         Intrinsic::Ge => type_check_comparison_operator(type_stack),
         Intrinsic::Gt => type_check_comparison_operator(type_stack),
         Intrinsic::Le => type_check_comparison_operator(type_stack),
+        Intrinsic::LoadByte => type_check_load(type_stack),
+        Intrinsic::LoadWord => type_check_load(type_stack),
+        Intrinsic::LoadDword => type_check_load(type_stack),
+        Intrinsic::LoadQword => type_check_load(type_stack),
         Intrinsic::Lt => type_check_comparison_operator(type_stack),
         Intrinsic::Mod => type_check_arithmetic(type_stack),
         Intrinsic::Mul => type_check_arithmetic(type_stack),
@@ -118,6 +122,12 @@ fn type_check_comparison_operator(type_stack: &mut Vec<String>) -> Result<(), Ty
 fn type_check_dup(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
     let ty = peek(&type_stack)?;
     type_stack.push(ty.to_string());
+    Ok(())
+}
+
+fn type_check_load(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
+    pop_type(type_stack, "ptr")?;
+    type_stack.push("any".to_string());
     Ok(())
 }
 
