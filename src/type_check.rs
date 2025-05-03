@@ -55,8 +55,14 @@ fn type_check_intrinsic(
         Intrinsic::Drop => pop(type_stack).map(|_| ()),
         Intrinsic::Dup => type_check_dup(type_stack),
         Intrinsic::Div => type_check_arithmetic(type_stack),
+        Intrinsic::Eq => type_check_comparison_operator(type_stack),
+        Intrinsic::Ge => type_check_comparison_operator(type_stack),
+        Intrinsic::Gt => type_check_comparison_operator(type_stack),
+        Intrinsic::Le => type_check_comparison_operator(type_stack),
+        Intrinsic::Lt => type_check_comparison_operator(type_stack),
         Intrinsic::Mod => type_check_arithmetic(type_stack),
         Intrinsic::Mul => type_check_arithmetic(type_stack),
+        Intrinsic::Ne => type_check_comparison_operator(type_stack),
         Intrinsic::Or => type_check_boolean_operator(type_stack),
         Intrinsic::Sub => type_check_arithmetic(type_stack),
         _ => todo!(),
@@ -97,6 +103,13 @@ fn type_check_arithmetic(type_stack: &mut Vec<String>) -> Result<(), TypeCheckEr
 fn type_check_boolean_operator(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
     pop_type(type_stack, "bool")?;
     peek_type(type_stack, "bool")?;
+    Ok(())
+}
+
+fn type_check_comparison_operator(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
+    pop_type(type_stack, "int")?;
+    pop_type(type_stack, "int")?;
+    type_stack.push("bool".to_string());
     Ok(())
 }
 
