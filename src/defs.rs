@@ -189,6 +189,16 @@ pub struct Parameter {
     pub ty: String,
 }
 
+pub trait ParameterSlice {
+    fn get_types(&self) -> Vec<String>;
+}
+
+impl ParameterSlice for [Parameter] {
+    fn get_types(&self) -> Vec<String> {
+        self.iter().map(|param| param.ty.clone()).collect()
+    }
+}
+
 /// # Examples
 ///
 /// `str`

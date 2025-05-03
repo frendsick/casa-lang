@@ -4,10 +4,12 @@ mod asm;
 mod compile;
 mod defs;
 mod lexer;
+mod type_check;
 
 use compile::compile_assembly_code;
 use std::io;
 use std::path::Path;
+use type_check::type_check_program;
 
 const ASSEMBLY_FILE: &str = "test.asm";
 const CODE_FILE: &str = "test.stak";
@@ -17,6 +19,8 @@ fn main() -> io::Result<()> {
     let code_file = crate_dir.join(CODE_FILE);
     let (segments, global_identifiers) = lexer::parse_code_file(code_file)?;
     dbg!(&segments);
+
+    type_check_program(&segments, &global_identifiers).unwrap();
 
     let assembly_code = asm::generate_assembly_code(&segments, &global_identifiers);
     let assembly_file = crate_dir.join(ASSEMBLY_FILE);
