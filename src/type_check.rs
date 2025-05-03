@@ -138,6 +138,8 @@ fn type_check_intrinsic(
         Intrinsic::Or => type_check_boolean_operator(type_stack, location),
         Intrinsic::Over => type_check_over(type_stack, location),
         Intrinsic::Rot => type_check_rot(type_stack),
+        Intrinsic::Shl => type_check_bitshift(type_stack, location),
+        Intrinsic::Shr => type_check_bitshift(type_stack, location),
         Intrinsic::StoreByte => type_check_store(type_stack),
         Intrinsic::StoreWord => type_check_store(type_stack),
         Intrinsic::StoreDword => type_check_store(type_stack),
@@ -151,7 +153,6 @@ fn type_check_intrinsic(
         Intrinsic::Syscall4 => type_check_syscall(type_stack, location, 4),
         Intrinsic::Syscall5 => type_check_syscall(type_stack, location, 5),
         Intrinsic::Syscall6 => type_check_syscall(type_stack, location, 6),
-        _ => todo!(),
     }
 }
 
