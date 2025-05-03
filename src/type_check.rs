@@ -153,6 +153,10 @@ fn type_check_ops(
                 Some(stack) => type_check_done(type_stack, stack)?,
                 None => Err(TypeCheckError::SyntaxError)?,
             },
+            OpType::Fi => match stack_before_branch {
+                Some(stack) => type_check_fi(type_stack, stack)?,
+                None => Err(TypeCheckError::SyntaxError)?,
+            },
             OpType::FunctionCall | OpType::InlineFunctionCall => {
                 match global_identifiers.get(&op.token.value) {
                     Some(Identifier::Function(function)) => {
@@ -163,6 +167,7 @@ fn type_check_ops(
             }
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
+            OpType::If => {}
             OpType::Intrinsic(intrinsic) => {
                 type_check_intrinsic(type_stack, &op.token.location, &intrinsic)?
             }
@@ -178,6 +183,18 @@ fn type_check_ops(
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(type_stack, variables, &op.token.value)?,
+            OpType::Then => {
+                type_stack.pop_type("bool")?;
+                type_check_ops(
+                    type_stack,
+                    variables,
+                    op_index,
+                    peek_index,
+                    ops,
+                    global_identifiers,
+                    Some(&type_stack.clone()),
+                )?;
+            }
             OpType::While => {
                 type_check_ops(
                     type_stack,
@@ -211,6 +228,15 @@ fn type_check_do(
 }
 
 fn type_check_done(
+    type_stack: &[TypeNode],
+    stack_before_while: &[TypeNode],
+) -> Result<(), TypeCheckError> {
+    matching_stacks(type_stack, stack_before_while)
+        .then(|| ())
+        .ok_or(TypeCheckError::BranchModifiedStack)
+}
+
+fn type_check_fi(
     type_stack: &[TypeNode],
     stack_before_while: &[TypeNode],
 ) -> Result<(), TypeCheckError> {
