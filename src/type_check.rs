@@ -145,6 +145,10 @@ fn type_check_ops(
         *op_index += 1;
         match &op.ty {
             OpType::Bind => *peek_index = 0,
+            OpType::Break => match stack_before_branch {
+                Some(stack) => type_check_break(&type_stack, stack)?,
+                None => Err(TypeCheckError::SyntaxError)?,
+            },
             OpType::Continue => match stack_before_branch {
                 Some(stack) => type_check_continue(&type_stack, stack)?,
                 None => Err(TypeCheckError::SyntaxError)?,
@@ -224,6 +228,15 @@ fn type_check_ops(
         }
     }
     Ok(())
+}
+
+fn type_check_break(
+    type_stack: &[TypeNode],
+    stack_before_while: &[TypeNode],
+) -> Result<(), TypeCheckError> {
+    matching_stacks(type_stack, stack_before_while)
+        .then(|| ())
+        .ok_or(TypeCheckError::InvalidStackState)
 }
 
 fn type_check_continue(
