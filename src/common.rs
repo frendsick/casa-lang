@@ -242,3 +242,54 @@ impl Counter {
         self.count.fetch_add(1, Ordering::SeqCst)
     }
 }
+
+pub fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Then);
+
+    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
+    let mut nested_ifs = 0;
+
+    for other_op in &function.ops[op_index + 1..] {
+        match other_op.ty {
+            OpType::Fi if nested_ifs == 0 => return Some(other_op.id),
+            OpType::Fi => nested_ifs -= 1,
+            OpType::If => nested_ifs += 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+pub fn get_related_done_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Break || op.ty == OpType::Do);
+
+    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
+    let mut nested_whiles = 0;
+
+    for other_op in &function.ops[op_index + 1..] {
+        match other_op.ty {
+            OpType::Done if nested_whiles == 0 => return Some(other_op.id),
+            OpType::Done => nested_whiles -= 1,
+            OpType::While => nested_whiles += 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+pub fn get_related_while_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Continue || op.ty == OpType::Done);
+
+    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
+    let mut nested_whiles = 0;
+
+    for other_op in function.ops[..op_index].iter().rev() {
+        match other_op.ty {
+            OpType::While if nested_whiles == 0 => return Some(other_op.id),
+            OpType::Done => nested_whiles += 1,
+            OpType::While => nested_whiles -= 1,
+            _ => {}
+        }
+    }
+    None
+}
