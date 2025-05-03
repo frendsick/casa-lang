@@ -66,6 +66,7 @@ fn type_check_intrinsic(
         Intrinsic::Or => type_check_boolean_operator(type_stack),
         Intrinsic::Rot => type_check_rot(type_stack),
         Intrinsic::Sub => type_check_arithmetic(type_stack),
+        Intrinsic::Swap => type_check_swap(type_stack),
         _ => todo!(),
     }
 }
@@ -127,5 +128,13 @@ fn type_check_rot(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
     type_stack.push(t2);
     type_stack.push(t1);
     type_stack.push(t3);
+    Ok(())
+}
+
+fn type_check_swap(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
+    let t1 = pop(type_stack)?;
+    let t2 = pop(type_stack)?;
+    type_stack.push(t1);
+    type_stack.push(t2);
     Ok(())
 }
