@@ -116,6 +116,7 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
 
 fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &IdentifierTable) -> String {
     match &op.ty {
+        OpType::Bind => "".to_string(),
         OpType::Break => get_asm_break(op, function),
         OpType::Continue => get_asm_continue(op, function),
         OpType::Do => get_asm_do(op, function),
@@ -124,11 +125,11 @@ fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &Identifi
         OpType::FunctionCall => get_asm_function_call(&op.token.value),
         OpType::FunctionEpilogue => match function.is_inline {
             true => "".to_string(),
-            false => get_asm_function_epilogue(function).to_string(),
+            false => get_asm_function_epilogue(function),
         },
         OpType::FunctionPrologue => match function.is_inline {
             true => "".to_string(),
-            false => get_asm_function_prologue(function).to_string(),
+            false => get_asm_function_prologue(function),
         },
         OpType::If => "".to_string(),
         OpType::InlineFunctionCall => {
@@ -142,9 +143,14 @@ fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &Identifi
             get_asm_for_function_ops(called_function, identifier_table)
         }
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
+        OpType::Peek => get_asm_peek().to_string(),
+        OpType::PeekBind => get_asm_peek_bind(op, function),
+        OpType::PushBind => get_asm_push_bind(op, function),
         OpType::PushInt => get_asm_push_int(op),
         OpType::PushStr => get_asm_push_str(op, function),
-        OpType::Return => get_asm_return(function).to_string(),
+        OpType::Return => get_asm_return(function),
+        OpType::Take => "".to_string(),
+        OpType::TakeBind => get_asm_take_bind(op, function),
         OpType::Then => get_asm_then(op, function),
         OpType::While => get_asm_while(op, function),
         // All unknown ops should be resolved before assembly generation
@@ -152,32 +158,44 @@ fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &Identifi
             dbg!(op);
             todo!()
         }
+        _ => {
+            dbg!(op);
+            todo!()
+        }
     }
 }
 
-fn get_asm_function_epilogue(function: &Function) -> &'static str {
+fn get_asm_function_epilogue(function: &Function) -> String {
     if function.name == "main" {
         "movq $0, %rdi
 movq $60, %rax
 syscall
 ret"
+        .to_string()
     } else {
-        // TODO: Deallocate variables from stack
-        "pushq (%r14)
-subq $8, %r14
-ret"
+        format!(
+            "pushq (%r14)
+subq ${}, %r14
+ret",
+            function.variables.len() * 8 + 8
+        )
     }
 }
 
-fn get_asm_function_prologue(function: &Function) -> &'static str {
+fn get_asm_function_prologue(function: &Function) -> String {
     if function.name == "main" {
-        "movq %rsp, (args_ptr)
+        format!(
+            "movq %rsp, (args_ptr)
 leaq return_stack(%rip), %r14
-addq $0, %r14"
+addq ${}, %r14",
+            function.variables.len() * 8
+        )
     } else {
-        // TODO: Allocate room for variables to the stack
-        "addq $8, %r14
-popq (%r14)"
+        format!(
+            "addq ${}, %r14
+popq (%r14)",
+            function.variables.len() * 8 + 8
+        )
     }
 }
 
@@ -257,6 +275,18 @@ fn get_related_while_id(op: &Op, function: &Function) -> Option<usize> {
         }
     }
     None
+}
+
+fn get_asm_push_bind(op: &Op, function: &Function) -> String {
+    let variable_index = match function.variables.get_index_of(&op.token.value) {
+        Some(index) => index,
+        None => {
+            eprintln!("Variable does not exist: {}", op.token.value);
+            panic!()
+        }
+    };
+
+    format!("pushq -{}(%r14)", variable_index * 8 + 8)
 }
 
 fn get_asm_push_int(op: &Op) -> String {
@@ -343,7 +373,41 @@ fn get_asm_continue(op: &Op, function: &Function) -> String {
     format!("jmp {}_while{}", function.name, related_id)
 }
 
-fn get_asm_return(function: &Function) -> &'static str {
+fn get_asm_peek() -> &'static str {
+    "movq %rsp, %r15"
+}
+
+fn get_asm_peek_bind(op: &Op, function: &Function) -> String {
+    let variable_index = match function.variables.get_index_of(&op.token.value) {
+        Some(index) => index,
+        None => {
+            eprintln!("Variable does not exist: {}", op.token.value);
+            panic!()
+        }
+    };
+    format!(
+        "popq %rbx
+movq %rbx, -{}(%r14)",
+        variable_index * 8 + 8
+    )
+}
+
+fn get_asm_take_bind(op: &Op, function: &Function) -> String {
+    let variable_index = match function.variables.get_index_of(&op.token.value) {
+        Some(index) => index,
+        None => {
+            eprintln!("Variable does not exist: {}", op.token.value);
+            panic!()
+        }
+    };
+    format!(
+        "popq %rbx
+movq %rbx, -{}(%r14)",
+        variable_index * 8 + 8
+    )
+}
+
+fn get_asm_return(function: &Function) -> String {
     get_asm_function_epilogue(function)
 }
 

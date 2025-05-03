@@ -1,3 +1,5 @@
+use indexmap::IndexMap;
+
 use crate::defs::{
     Counter, DELIMITERS, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal,
     Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType,
@@ -21,10 +23,10 @@ pub fn parse_code_file(file: PathBuf) -> io::Result<(Vec<Segment>, IdentifierTab
     assert!(cursor >= code.len());
 
     // Identifier resolution was not performed during initial parsing
-    let identifier_table = generate_identifier_table(&segments);
-    resolve_identifiers(&mut segments, &identifier_table);
+    let global_identifiers = get_global_identifiers(&segments);
+    resolve_identifiers(&mut segments, &global_identifiers);
 
-    Ok((segments, identifier_table))
+    Ok((segments, global_identifiers))
 }
 
 fn parse_next_segment(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Segment> {
@@ -37,41 +39,50 @@ fn parse_next_segment(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<
     }
 }
 
-fn generate_identifier_table(segments: &[Segment]) -> IdentifierTable {
-    let mut identifier_table: IdentifierTable = HashMap::new();
+fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
+    let mut global_identifiers: IdentifierTable = HashMap::new();
     for segment in segments {
         match segment {
             Segment::Function(f) => {
-                identifier_table.insert(f.name.clone(), Identifier::Function(f.clone()));
+                global_identifiers.insert(f.name.clone(), Identifier::Function(f.clone()));
             }
         }
     }
-    identifier_table
+    global_identifiers
 }
 
-fn resolve_identifiers(segments: &mut [Segment], identifier_table: &IdentifierTable) {
+fn resolve_identifiers(segments: &mut [Segment], global_identifiers: &IdentifierTable) {
     for segment in segments.iter_mut() {
         let Segment::Function(func) = segment;
-        resolve_identifiers_for_function(func, &identifier_table);
+        resolve_identifiers_for_function(func, &global_identifiers);
     }
 }
 
-fn resolve_identifiers_for_function(function: &mut Function, identifier_table: &IdentifierTable) {
+fn resolve_identifiers_for_function(function: &mut Function, global_identifiers: &IdentifierTable) {
     for op in &mut function.ops {
         if op.ty != OpType::Unknown {
             continue;
         }
-        match identifier_table.get(&op.token.value) {
+
+        // Global identifiers
+        match global_identifiers.get(&op.token.value) {
             Some(Identifier::Function(f)) => match f.is_inline {
                 true => op.ty = OpType::InlineFunctionCall,
                 false => op.ty = OpType::FunctionCall,
             },
-            None => {
-                eprintln!("Unknown identifier {}", op.token.value);
-                panic!()
-            }
+            None => {}
+        }
+
+        // Variables
+        if function.variables.get(&op.token.value).is_some() {
+            op.ty = OpType::PushBind;
         }
     }
+}
+
+enum Binding {
+    Take,
+    Peek,
 }
 
 fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Function> {
@@ -102,10 +113,17 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
     parse_over_word(code, cursor, ":");
 
     // Function tokens
+    let mut variables = IndexMap::new();
+    let mut binding: Option<Binding> = None;
     while let Some(token) = get_next_token(&code, cursor, &file) {
         match &token.ty {
             TokenType::Delimiter(_) => {}
-            TokenType::Identifier => ops.push(get_identifier_op(&token)),
+            TokenType::Identifier => {
+                ops.push(get_identifier_op(&token, &binding));
+                if binding.is_some() {
+                    variables.insert(token.value, None);
+                }
+            }
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
             TokenType::Keyword(Keyword::End) => {
@@ -114,9 +132,15 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
                 }
                 break;
             }
-            TokenType::Keyword(v) => {
-                if let Some(op) = get_keyword_op(v, &token) {
+            TokenType::Keyword(keyword) => {
+                if let Some(op) = get_keyword_op(keyword, &token) {
                     ops.push(op);
+                }
+                match keyword {
+                    Keyword::Bind => binding = None,
+                    Keyword::Peek => binding = Some(Binding::Peek),
+                    Keyword::Take => binding = Some(Binding::Take),
+                    _ => {}
                 }
             }
         }
@@ -128,6 +152,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
         location,
         is_inline,
         ops,
+        variables,
     })
 }
 
@@ -176,9 +201,13 @@ fn parse_function_return_types(code: &str, cursor: &mut usize) -> Vec<String> {
     return_types
 }
 
-fn get_identifier_op(token: &Token) -> Op {
-    // Identifier resolution is not performed during initial parsing
-    Op::new(OP_COUNTER.fetch_add(), OpType::Unknown, token)
+fn get_identifier_op(token: &Token, binding: &Option<Binding>) -> Op {
+    let op_type = match binding {
+        Some(Binding::Peek) => OpType::PeekBind,
+        Some(Binding::Take) => OpType::TakeBind,
+        None => OpType::Unknown, // Identifier resolution is performed later
+    };
+    Op::new(OP_COUNTER.fetch_add(), op_type, token)
 }
 
 fn get_intrinsic_op(intrinsic: &Intrinsic, token: &Token) -> Op {
@@ -198,6 +227,7 @@ fn get_literal_op(literal: &Literal, token: &Token) -> Op {
 fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
     let id = OP_COUNTER.fetch_add();
     match keyword {
+        Keyword::Bind => Some(Op::new(id, OpType::Bind, &token)),
         Keyword::Break => Some(Op::new(id, OpType::Break, &token)),
         Keyword::Continue => Some(Op::new(id, OpType::Continue, &token)),
         Keyword::Do => Some(Op::new(id, OpType::Do, &token)),
@@ -207,7 +237,9 @@ fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
         Keyword::Fi => Some(Op::new(id, OpType::Fi, &token)),
         Keyword::If => Some(Op::new(id, OpType::If, &token)),
         Keyword::Inline => None,
+        Keyword::Peek => Some(Op::new(id, OpType::Peek, &token)),
         Keyword::Return => Some(Op::new(id, OpType::Return, &token)),
+        Keyword::Take => Some(Op::new(id, OpType::Take, &token)),
         Keyword::Then => Some(Op::new(id, OpType::Then, &token)),
         Keyword::While => Some(Op::new(id, OpType::While, &token)),
         _ => todo!(),

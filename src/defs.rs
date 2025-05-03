@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use phf::phf_map;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -36,6 +37,7 @@ pub enum Delimiter {
 #[derive(Debug, Clone, PartialEq, EnumString, Display)]
 #[strum(serialize_all = "lowercase")]
 pub enum Keyword {
+    Bind,
     Break,
     Cast,
     Const,
@@ -51,7 +53,9 @@ pub enum Keyword {
     Function,
     If,
     Inline,
+    Peek,
     Return,
+    Take,
     Then,
     Typeof,
     While,
@@ -150,6 +154,14 @@ pub enum OpType {
     Break,
     Continue,
 
+    // Variables
+    Take,
+    Peek,
+    Bind,
+    TakeBind,
+    PeekBind,
+    PushBind,
+
     // Must be resolved later
     Unknown,
 }
@@ -189,12 +201,21 @@ pub struct Signature {
 }
 
 #[derive(Debug, Clone)]
+pub struct Variable {
+    pub name: String,
+    pub ty: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
     pub signature: Signature,
     pub location: Location,
     pub is_inline: bool,
     pub ops: Vec<Op>,
+    // name, type
+    // NOTE: Type is unknown until type checking
+    pub variables: IndexMap<String, Option<String>>,
 }
 
 #[derive(Debug)]
