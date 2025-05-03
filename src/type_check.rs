@@ -23,7 +23,7 @@ struct TypeNode {
 }
 
 trait TypeStack {
-    fn from(types: &[String], location: &Location) -> Vec<TypeNode>;
+    fn from_types(types: &[String], location: &Location) -> Vec<TypeNode>;
     fn peek_nth(&self, n: usize) -> Result<&TypeNode, TypeCheckError>;
     fn peek_stack(&self) -> Result<&TypeNode, TypeCheckError>;
     fn peek_type(&self, expected_type: &str) -> Result<(), TypeCheckError>;
@@ -34,7 +34,7 @@ trait TypeStack {
 }
 
 impl TypeStack for Vec<TypeNode> {
-    fn from(types: &[String], location: &Location) -> Vec<TypeNode> {
+    fn from_types(types: &[String], location: &Location) -> Vec<TypeNode> {
         types
             .iter()
             .map(|ty| TypeNode {
@@ -102,12 +102,9 @@ fn type_check_function(
     function: &Function,
     global_identifiers: &IdentifierTable,
 ) -> Result<(), TypeCheckError> {
-    let mut type_stack = <Vec<TypeNode> as TypeStack>::from(
-        &function.signature.params.get_types(),
-        &function.location,
-    );
-    let return_stack =
-        <Vec<TypeNode> as TypeStack>::from(&function.signature.returns, &function.location);
+    let mut type_stack =
+        Vec::from_types(&function.signature.params.get_types(), &function.location);
+    let return_stack = Vec::from_types(&function.signature.returns, &function.location);
 
     let mut variables = IndexMap::new();
     let mut peek_index = 0;
