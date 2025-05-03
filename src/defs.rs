@@ -1,4 +1,4 @@
-use indexmap::IndexMap;
+use indexmap::IndexSet;
 use phf::phf_map;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -214,8 +214,7 @@ pub struct Function {
     pub is_inline: bool,
     pub ops: Vec<Op>,
     // name, type
-    // NOTE: Type is unknown until type checking
-    pub variables: IndexMap<String, Option<String>>,
+    pub variables: IndexSet<String>,
 }
 
 #[derive(Debug)]

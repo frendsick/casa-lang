@@ -1,4 +1,4 @@
-use indexmap::IndexMap;
+use indexmap::IndexSet;
 
 use crate::defs::{
     Counter, DELIMITERS, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal,
@@ -113,7 +113,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
     parse_over_word(code, cursor, ":");
 
     // Function tokens
-    let mut variables = IndexMap::new();
+    let mut variables = IndexSet::new();
     let mut binding: Option<Binding> = None;
     while let Some(token) = get_next_token(&code, cursor, &file) {
         match &token.ty {
@@ -121,7 +121,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
             TokenType::Identifier => {
                 ops.push(get_identifier_op(&token, &binding));
                 if binding.is_some() {
-                    variables.insert(token.value, None);
+                    variables.insert(token.value);
                 }
             }
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
