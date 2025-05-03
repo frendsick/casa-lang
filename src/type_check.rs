@@ -1,6 +1,4 @@
-use crate::defs::{
-    Function, IdentifierTable, Intrinsic, Op, OpType, Parameter, ParameterSlice, Segment,
-};
+use crate::defs::{Function, IdentifierTable, Intrinsic, OpType, ParameterSlice, Segment};
 
 #[derive(Debug)]
 pub enum TypeCheckError {
@@ -52,10 +50,21 @@ fn type_check_intrinsic(
 ) -> Result<(), TypeCheckError> {
     match intrinsic {
         Intrinsic::Drop => pop(type_stack).map(|_| ()),
+        Intrinsic::Dup => type_check_dup(type_stack),
         _ => todo!(),
     }
 }
 
 fn pop(type_stack: &mut Vec<String>) -> Result<String, TypeCheckError> {
     type_stack.pop().ok_or(TypeCheckError::StackUnderflow)
+}
+
+fn peek(type_stack: &[String]) -> Option<&str> {
+    type_stack.last().map(String::as_str)
+}
+
+fn type_check_dup(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
+    let ty = peek(&type_stack).ok_or(TypeCheckError::StackUnderflow)?;
+    type_stack.push(ty.to_string());
+    Ok(())
 }
