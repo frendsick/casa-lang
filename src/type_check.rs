@@ -64,6 +64,7 @@ fn type_check_intrinsic(
         Intrinsic::Mul => type_check_arithmetic(type_stack),
         Intrinsic::Ne => type_check_comparison_operator(type_stack),
         Intrinsic::Or => type_check_boolean_operator(type_stack),
+        Intrinsic::Rot => type_check_rot(type_stack),
         Intrinsic::Sub => type_check_arithmetic(type_stack),
         _ => todo!(),
     }
@@ -116,5 +117,15 @@ fn type_check_comparison_operator(type_stack: &mut Vec<String>) -> Result<(), Ty
 fn type_check_dup(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
     let ty = peek(&type_stack)?;
     type_stack.push(ty.to_string());
+    Ok(())
+}
+
+fn type_check_rot(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
+    let t1 = pop(type_stack)?;
+    let t2 = pop(type_stack)?;
+    let t3 = pop(type_stack)?;
+    type_stack.push(t2);
+    type_stack.push(t1);
+    type_stack.push(t3);
     Ok(())
 }
