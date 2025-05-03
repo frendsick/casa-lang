@@ -68,7 +68,7 @@ pub enum Literal {
 }
 
 #[derive(Debug, Clone, PartialEq, EnumString, Display)]
-#[strum(serialize_all = "lowercase")]
+#[strum(serialize_all = "snake_case")]
 pub enum Intrinsic {
     Add,
     And,
