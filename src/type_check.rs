@@ -1,14 +1,16 @@
 use indexmap::IndexMap;
 
 use crate::defs::{
-    Function, Identifier, IdentifierTable, Intrinsic, Location, OpType, Parameter, ParameterSlice,
-    Segment,
+    Function, Identifier, IdentifierTable, Intrinsic, Location, Op, OpType, Parameter,
+    ParameterSlice, Segment,
 };
 
 #[derive(Debug)]
 pub enum TypeCheckError {
+    BranchModifiedStack,
     InvalidSignature,
     StackUnderflow,
+    SyntaxError,
     UnknownIdentifier,
     ValueError,
 }
@@ -104,13 +106,16 @@ fn type_check_function(
         <Vec<TypeNode> as TypeStack>::from(&function.signature.params, &function.location);
     let mut variables = IndexMap::new();
     let mut peek_index = 0;
+    let mut op_index = 0;
 
     type_check_ops(
         &mut type_stack,
         &mut variables,
+        &mut op_index,
         &mut peek_index,
         &function.ops,
         global_identifiers,
+        None,
     )?;
 
     // Pop return types
@@ -129,13 +134,25 @@ fn type_check_function(
 fn type_check_ops(
     type_stack: &mut Vec<TypeNode>,
     variables: &mut IndexMap<String, String>,
+    op_index: &mut usize,
     peek_index: &mut usize,
     ops: &[Op],
     global_identifiers: &IdentifierTable,
+    stack_before_branch: Option<&[TypeNode]>,
 ) -> Result<(), TypeCheckError> {
-    for op in ops {
+    while let Some(op) = ops.get(*op_index) {
+        dbg!(&op.token.value);
+        *op_index += 1;
         match &op.ty {
             OpType::Bind => *peek_index = 0,
+            OpType::Do => match stack_before_branch {
+                Some(stack) => type_check_do(type_stack, stack)?,
+                None => Err(TypeCheckError::SyntaxError)?,
+            },
+            OpType::Done => match stack_before_branch {
+                Some(stack) => type_check_done(type_stack, stack)?,
+                None => Err(TypeCheckError::SyntaxError)?,
+            },
             OpType::FunctionCall | OpType::InlineFunctionCall => {
                 match global_identifiers.get(&op.token.value) {
                     Some(Identifier::Function(function)) => {
@@ -161,6 +178,17 @@ fn type_check_ops(
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(type_stack, variables, &op.token.value)?,
+            OpType::While => {
+                type_check_ops(
+                    type_stack,
+                    variables,
+                    op_index,
+                    peek_index,
+                    ops,
+                    global_identifiers,
+                    Some(&type_stack.clone()),
+                )?;
+            }
             // All unknown ops should be resolved before type checking
             OpType::Unknown => {
                 dbg!(op);
@@ -170,6 +198,25 @@ fn type_check_ops(
         }
     }
     Ok(())
+}
+
+fn type_check_do(
+    type_stack: &mut Vec<TypeNode>,
+    stack_before_while: &[TypeNode],
+) -> Result<(), TypeCheckError> {
+    type_stack.pop_type("bool")?;
+    matching_stacks(type_stack, stack_before_while)
+        .then(|| ())
+        .ok_or(TypeCheckError::BranchModifiedStack)
+}
+
+fn type_check_done(
+    type_stack: &[TypeNode],
+    stack_before_while: &[TypeNode],
+) -> Result<(), TypeCheckError> {
+    matching_stacks(type_stack, stack_before_while)
+        .then(|| ())
+        .ok_or(TypeCheckError::BranchModifiedStack)
 }
 
 fn type_check_function_call(
@@ -263,6 +310,18 @@ fn type_check_intrinsic(
         Intrinsic::Syscall5 => type_check_syscall(type_stack, location, 5),
         Intrinsic::Syscall6 => type_check_syscall(type_stack, location, 6),
     }
+}
+
+fn matching_stacks(stack1: &[TypeNode], stack2: &[TypeNode]) -> bool {
+    if stack1.len() != stack2.len() {
+        return false;
+    }
+    for (node1, node2) in stack1.iter().zip(stack2) {
+        if node1.ty != node2.ty {
+            return false;
+        }
+    }
+    return true;
 }
 
 fn type_check_arithmetic(
