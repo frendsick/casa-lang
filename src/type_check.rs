@@ -4,6 +4,7 @@ use crate::defs::{Function, IdentifierTable, Intrinsic, OpType, ParameterSlice, 
 pub enum TypeCheckError {
     InvalidSignature,
     StackUnderflow,
+    ValueError,
 }
 
 pub fn type_check_program(
@@ -49,8 +50,13 @@ fn type_check_intrinsic(
     intrinsic: &Intrinsic,
 ) -> Result<(), TypeCheckError> {
     match intrinsic {
+        Intrinsic::Add => type_check_arithmetic(type_stack),
         Intrinsic::Drop => pop(type_stack).map(|_| ()),
         Intrinsic::Dup => type_check_dup(type_stack),
+        Intrinsic::Div => type_check_arithmetic(type_stack),
+        Intrinsic::Mod => type_check_arithmetic(type_stack),
+        Intrinsic::Mul => type_check_arithmetic(type_stack),
+        Intrinsic::Sub => type_check_arithmetic(type_stack),
         _ => todo!(),
     }
 }
@@ -59,12 +65,35 @@ fn pop(type_stack: &mut Vec<String>) -> Result<String, TypeCheckError> {
     type_stack.pop().ok_or(TypeCheckError::StackUnderflow)
 }
 
-fn peek(type_stack: &[String]) -> Option<&str> {
-    type_stack.last().map(String::as_str)
+fn pop_type(type_stack: &mut Vec<String>, expected_type: &str) -> Result<(), TypeCheckError> {
+    let ty = pop(type_stack)?;
+    (&ty == expected_type)
+        .then(|| ())
+        .ok_or(TypeCheckError::ValueError)
+}
+
+fn peek(type_stack: &[String]) -> Result<&str, TypeCheckError> {
+    type_stack
+        .last()
+        .map(String::as_str)
+        .ok_or(TypeCheckError::StackUnderflow)
+}
+
+fn peek_type(type_stack: &[String], expected_type: &str) -> Result<(), TypeCheckError> {
+    let ty = peek(type_stack)?;
+    (ty == expected_type)
+        .then(|| ())
+        .ok_or(TypeCheckError::ValueError)
+}
+
+fn type_check_arithmetic(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
+    pop_type(type_stack, "int")?;
+    peek_type(type_stack, "int")?;
+    Ok(())
 }
 
 fn type_check_dup(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
-    let ty = peek(&type_stack).ok_or(TypeCheckError::StackUnderflow)?;
+    let ty = peek(&type_stack)?;
     type_stack.push(ty.to_string());
     Ok(())
 }
