@@ -1,8 +1,8 @@
 #![feature(if_let_guard)]
 
 mod asm;
+mod common;
 mod compile;
-mod defs;
 mod lexer;
 mod type_check;
 

@@ -1,4 +1,4 @@
-use crate::defs::{Function, Identifier, IdentifierTable, Intrinsic, Op, OpType, Segment};
+use crate::common::{Function, Identifier, IdentifierTable, Intrinsic, Op, OpType, Segment};
 
 pub fn generate_assembly_code(segments: &[Segment], identifier_table: &IdentifierTable) -> String {
     let mut asm_blocks = Vec::new();

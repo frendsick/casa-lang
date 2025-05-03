@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 
-use crate::defs::{
+use crate::common::{
     Function, Identifier, IdentifierTable, Intrinsic, Location, Op, OpType, Parameter,
     ParameterSlice, Segment,
 };
