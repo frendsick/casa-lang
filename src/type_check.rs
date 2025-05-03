@@ -144,6 +144,13 @@ fn type_check_intrinsic(
         Intrinsic::StoreQword => type_check_store(type_stack),
         Intrinsic::Sub => type_check_arithmetic(type_stack, location),
         Intrinsic::Swap => type_check_swap(type_stack),
+        Intrinsic::Syscall0 => type_check_syscall(type_stack, location, 0),
+        Intrinsic::Syscall1 => type_check_syscall(type_stack, location, 1),
+        Intrinsic::Syscall2 => type_check_syscall(type_stack, location, 2),
+        Intrinsic::Syscall3 => type_check_syscall(type_stack, location, 3),
+        Intrinsic::Syscall4 => type_check_syscall(type_stack, location, 4),
+        Intrinsic::Syscall5 => type_check_syscall(type_stack, location, 5),
+        Intrinsic::Syscall6 => type_check_syscall(type_stack, location, 6),
         _ => todo!(),
     }
 }
@@ -236,5 +243,22 @@ fn type_check_swap(type_stack: &mut Vec<TypeNode>) -> Result<(), TypeCheckError>
     let t2 = type_stack.pop_stack()?;
     type_stack.push_node(t1);
     type_stack.push_node(t2);
+    Ok(())
+}
+
+fn type_check_syscall(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+    argc: u8,
+) -> Result<(), TypeCheckError> {
+    assert!(argc <= 6);
+
+    let syscall = type_stack.pop_type("int")?;
+    for _ in 0..argc {
+        type_stack.pop_stack()?;
+    }
+
+    // Return value of the syscall
+    type_stack.push_type("int", location);
     Ok(())
 }
