@@ -141,7 +141,6 @@ fn type_check_ops(
     stack_before_branch: Option<&[TypeNode]>,
 ) -> Result<(), TypeCheckError> {
     while let Some(op) = ops.get(*op_index) {
-        dbg!(&op.token.value);
         *op_index += 1;
         match &op.ty {
             OpType::Bind => *peek_index = 0,
@@ -224,7 +223,6 @@ fn type_check_ops(
                 dbg!(op);
                 todo!()
             }
-            _ => todo!(),
         }
     }
     Ok(())
