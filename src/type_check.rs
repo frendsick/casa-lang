@@ -5,6 +5,7 @@ use crate::defs::{
 #[derive(Debug)]
 pub enum TypeCheckError {
     InvalidSignature,
+    StackUnderflow,
 }
 
 pub fn type_check_program(
@@ -31,6 +32,7 @@ fn type_check_function(
         match &op.ty {
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
+            OpType::Intrinsic(intrinsic) => type_check_intrinsic(&mut type_stack, &intrinsic)?,
             OpType::PushInt => type_stack.push("int".to_string()),
             OpType::PushStr => type_stack.push("str".to_string()),
             _ => todo!(),
@@ -42,4 +44,18 @@ fn type_check_function(
     }
 
     Ok(())
+}
+
+fn type_check_intrinsic(
+    type_stack: &mut Vec<String>,
+    intrinsic: &Intrinsic,
+) -> Result<(), TypeCheckError> {
+    match intrinsic {
+        Intrinsic::Drop => pop(type_stack).map(|_| ()),
+        _ => todo!(),
+    }
+}
+
+fn pop(type_stack: &mut Vec<String>) -> Result<String, TypeCheckError> {
+    type_stack.pop().ok_or(TypeCheckError::StackUnderflow)
 }
