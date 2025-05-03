@@ -1,11 +1,13 @@
 use crate::defs::{
-    Function, IdentifierTable, Intrinsic, Location, OpType, Parameter, ParameterSlice, Segment,
+    Function, Identifier, IdentifierTable, Intrinsic, Location, OpType, Parameter, ParameterSlice,
+    Segment,
 };
 
 #[derive(Debug)]
 pub enum TypeCheckError {
     InvalidSignature,
     StackUnderflow,
+    UnknownIdentifier,
     ValueError,
 }
 
@@ -86,7 +88,7 @@ pub fn type_check_program(
 
 fn type_check_function(
     function: &Function,
-    _global_identifiers: &IdentifierTable,
+    global_identifiers: &IdentifierTable,
 ) -> Result<(), TypeCheckError> {
     let mut type_stack =
         <Vec<TypeNode> as TypeStack>::from(&function.signature.params, &function.location);
@@ -94,10 +96,18 @@ fn type_check_function(
     for op in &function.ops {
         dbg!(&op);
         match &op.ty {
+            OpType::FunctionCall | OpType::InlineFunctionCall => {
+                match global_identifiers.get(&op.token.value) {
+                    Some(Identifier::Function(function)) => {
+                        type_check_function_call(&mut type_stack, &op.token.location, function)?;
+                    }
+                    _ => Err(TypeCheckError::UnknownIdentifier)?,
+                }
+            }
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
             OpType::Intrinsic(intrinsic) => {
-                type_check_intrinsic(&mut type_stack, &intrinsic, &op.token.location)?
+                type_check_intrinsic(&mut type_stack, &op.token.location, intrinsic)?
             }
             OpType::PushInt => type_stack.push_type("int", &op.token.location),
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
@@ -112,10 +122,24 @@ fn type_check_function(
     Ok(())
 }
 
+fn type_check_function_call(
+    type_stack: &mut Vec<TypeNode>,
+    location: &Location,
+    function: &Function,
+) -> Result<(), TypeCheckError> {
+    for param in &function.signature.params {
+        type_stack.pop_type(&param.ty)?;
+    }
+    for return_type in &function.signature.returns {
+        type_stack.push_type(&return_type, location);
+    }
+    Ok(())
+}
+
 fn type_check_intrinsic(
     type_stack: &mut Vec<TypeNode>,
-    intrinsic: &Intrinsic,
     location: &Location,
+    intrinsic: &Intrinsic,
 ) -> Result<(), TypeCheckError> {
     match intrinsic {
         Intrinsic::And => type_check_boolean_operator(type_stack, location),
