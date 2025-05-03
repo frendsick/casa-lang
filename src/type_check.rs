@@ -69,6 +69,10 @@ fn type_check_intrinsic(
         Intrinsic::Ne => type_check_comparison_operator(type_stack),
         Intrinsic::Or => type_check_boolean_operator(type_stack),
         Intrinsic::Rot => type_check_rot(type_stack),
+        Intrinsic::StoreByte => type_check_store(type_stack),
+        Intrinsic::StoreWord => type_check_store(type_stack),
+        Intrinsic::StoreDword => type_check_store(type_stack),
+        Intrinsic::StoreQword => type_check_store(type_stack),
         Intrinsic::Sub => type_check_arithmetic(type_stack),
         Intrinsic::Swap => type_check_swap(type_stack),
         _ => todo!(),
@@ -138,6 +142,12 @@ fn type_check_rot(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
     type_stack.push(t2);
     type_stack.push(t1);
     type_stack.push(t3);
+    Ok(())
+}
+
+fn type_check_store(type_stack: &mut Vec<String>) -> Result<(), TypeCheckError> {
+    pop_type(type_stack, "ptr")?;
+    pop(type_stack)?;
     Ok(())
 }
 
