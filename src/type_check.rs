@@ -115,9 +115,15 @@ fn type_check_function(
         }
     }
 
-    // if type_stack != function.signature.returns {
-    //     return Err(TypeCheckError::InvalidSignature);
-    // }
+    // Pop return types
+    for return_type in &function.signature.returns {
+        type_stack.pop_type(&return_type)?;
+    }
+
+    // Verify that stack is empty after function return
+    if type_stack.len() != 0 {
+        return Err(TypeCheckError::InvalidSignature);
+    }
 
     Ok(())
 }
