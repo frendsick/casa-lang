@@ -1,3 +1,5 @@
+use indexmap::IndexMap;
+
 use crate::defs::{
     Function, Identifier, IdentifierTable, Intrinsic, Location, OpType, Parameter, ParameterSlice,
     Segment,
@@ -92,10 +94,12 @@ fn type_check_function(
 ) -> Result<(), TypeCheckError> {
     let mut type_stack =
         <Vec<TypeNode> as TypeStack>::from(&function.signature.params, &function.location);
+    let mut variables = IndexMap::new();
 
     for op in &function.ops {
         dbg!(&op);
         match &op.ty {
+            OpType::Bind => {}
             OpType::FunctionCall | OpType::InlineFunctionCall => {
                 match global_identifiers.get(&op.token.value) {
                     Some(Identifier::Function(function)) => {
@@ -109,8 +113,18 @@ fn type_check_function(
             OpType::Intrinsic(intrinsic) => {
                 type_check_intrinsic(&mut type_stack, &op.token.location, intrinsic)?
             }
+            OpType::PushBind => type_check_push_bind(
+                &mut type_stack,
+                &variables,
+                &op.token.location,
+                &op.token.value,
+            )?,
             OpType::PushInt => type_stack.push_type("int", &op.token.location),
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
+            OpType::Take => {}
+            OpType::TakeBind => {
+                type_check_take_bind(&mut type_stack, &mut variables, &op.token.value)?
+            }
             _ => todo!(),
         }
     }
@@ -139,6 +153,30 @@ fn type_check_function_call(
     for return_type in &function.signature.returns {
         type_stack.push_type(&return_type, location);
     }
+    Ok(())
+}
+
+fn type_check_push_bind(
+    type_stack: &mut Vec<TypeNode>,
+    variables: &IndexMap<String, String>,
+    location: &Location,
+    variable_name: &str,
+) -> Result<(), TypeCheckError> {
+    let ty = match variables.get(variable_name) {
+        Some(ty) => ty,
+        None => Err(TypeCheckError::UnknownIdentifier)?,
+    };
+    type_stack.push_type(ty, location);
+    Ok(())
+}
+
+fn type_check_take_bind(
+    type_stack: &mut Vec<TypeNode>,
+    variables: &mut IndexMap<String, String>,
+    variable_name: &str,
+) -> Result<(), TypeCheckError> {
+    let node = type_stack.pop_stack()?;
+    variables.insert(variable_name.to_string(), node.ty);
     Ok(())
 }
 
