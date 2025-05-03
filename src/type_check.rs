@@ -139,6 +139,11 @@ fn type_check_function(
             OpType::TakeBind => {
                 type_check_take_bind(&mut type_stack, &mut variables, &op.token.value)?
             }
+            // All unknown ops should be resolved before type checking
+            OpType::Unknown => {
+                dbg!(op);
+                todo!()
+            }
             _ => todo!(),
         }
     }
