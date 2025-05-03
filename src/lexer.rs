@@ -1,6 +1,6 @@
 use crate::defs::{
-    Counter, DELIMITERS, Delimiter, Function, Intrinsic, Keyword, Literal, Location, Op, OpType,
-    Parameter, Segment, Signature, Token, TokenType,
+    Counter, DELIMITERS, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal,
+    Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType,
 };
 use std::collections::HashMap;
 use std::io;
@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 static OP_COUNTER: Counter = Counter::new();
 
-pub fn parse_segments_from_file(file: PathBuf) -> io::Result<Vec<Segment>> {
+pub fn parse_code_file(file: PathBuf) -> io::Result<(Vec<Segment>, IdentifierTable)> {
     let code = std::fs::read_to_string(&file)?;
 
     let mut segments = Vec::new();
@@ -21,9 +21,10 @@ pub fn parse_segments_from_file(file: PathBuf) -> io::Result<Vec<Segment>> {
     assert!(cursor >= code.len());
 
     // Identifier resolution was not performed during initial parsing
-    resolve_identifiers(&mut segments);
+    let identifier_table = generate_identifier_table(&segments);
+    resolve_identifiers(&mut segments, &identifier_table);
 
-    Ok(segments)
+    Ok((segments, identifier_table))
 }
 
 fn parse_next_segment(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Segment> {
@@ -31,42 +32,44 @@ fn parse_next_segment(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<
 
     let keyword = peek_until_whitespace_or_delimiter(code, *cursor);
     match keyword {
-        "function" => {
-            let function = parse_function(code, cursor, file)?;
-            Some(Segment::Function(function))
-        }
+        "function" | "inline" => Some(Segment::Function(parse_function(code, cursor, file)?)),
         _ => None,
     }
 }
 
-fn resolve_identifiers(segments: &mut [Segment]) {
-    // Build symbol table
-    let mut symbol_table: HashMap<String, OpType> = HashMap::new();
-    for segment in &*segments {
+fn generate_identifier_table(segments: &[Segment]) -> IdentifierTable {
+    let mut identifier_table: IdentifierTable = HashMap::new();
+    for segment in segments {
         match segment {
             Segment::Function(f) => {
-                symbol_table.insert(f.name.clone(), OpType::FunctionCall);
+                identifier_table.insert(f.name.clone(), Identifier::Function(f.clone()));
             }
         }
     }
+    identifier_table
+}
 
-    // Now walk each function and resolve ops based on the symbol table
+fn resolve_identifiers(segments: &mut [Segment], identifier_table: &IdentifierTable) {
     for segment in segments.iter_mut() {
         let Segment::Function(func) = segment;
-        resolve_identifiers_for_function(func, &symbol_table);
+        resolve_identifiers_for_function(func, &identifier_table);
     }
 }
 
-fn resolve_identifiers_for_function(
-    function: &mut Function,
-    symbol_table: &HashMap<String, OpType>,
-) {
+fn resolve_identifiers_for_function(function: &mut Function, identifier_table: &IdentifierTable) {
     for op in &mut function.ops {
         if op.ty != OpType::Unknown {
             continue;
         }
-        if let Some(op_type) = symbol_table.get(&op.token.value) {
-            op.ty = op_type.clone();
+        match identifier_table.get(&op.token.value) {
+            Some(Identifier::Function(f)) => match f.is_inline {
+                true => op.ty = OpType::InlineFunctionCall,
+                false => op.ty = OpType::FunctionCall,
+            },
+            None => {
+                eprintln!("Unknown identifier {}", op.token.value);
+                panic!()
+            }
         }
     }
 }
@@ -74,13 +77,20 @@ fn resolve_identifiers_for_function(
 fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Function> {
     let mut ops = Vec::new();
 
+    // "inline"
+    let is_inline = parse_over_word(code, cursor, "inline").is_some();
+    parse_over_whitespace(code, cursor);
+
     // "function"
     let location = get_location(code, *cursor, file);
     let function_token = get_next_token(code, cursor, file)?;
     assert!(function_token.value == "function");
-    let id = OP_COUNTER.fetch_add();
-    let prologue = Op::new(id, OpType::FunctionPrologue, &function_token);
-    ops.push(prologue);
+    // Add function prologue if the function is not inline
+    if !is_inline {
+        let id = OP_COUNTER.fetch_add();
+        let prologue = Op::new(id, OpType::FunctionPrologue, &function_token);
+        ops.push(prologue);
+    }
     parse_over_whitespace(code, cursor);
 
     // Function name
@@ -98,12 +108,15 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
             TokenType::Identifier => ops.push(get_identifier_op(&token)),
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
+            TokenType::Keyword(Keyword::End) => {
+                if !is_inline {
+                    ops.push(get_keyword_op(&Keyword::End, &token)?);
+                }
+                break;
+            }
             TokenType::Keyword(v) => {
                 if let Some(op) = get_keyword_op(v, &token) {
                     ops.push(op);
-                }
-                if *v == Keyword::End {
-                    break;
                 }
             }
         }
@@ -113,6 +126,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
         name,
         signature,
         location,
+        is_inline,
         ops,
     })
 }
@@ -184,7 +198,6 @@ fn get_literal_op(literal: &Literal, token: &Token) -> Op {
 fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
     let id = OP_COUNTER.fetch_add();
     match keyword {
-        // TODO: Ignore epilogue for inline functions
         Keyword::Break => Some(Op::new(id, OpType::Break, &token)),
         Keyword::Continue => Some(Op::new(id, OpType::Continue, &token)),
         Keyword::Do => Some(Op::new(id, OpType::Do, &token)),
@@ -193,6 +206,7 @@ fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
         Keyword::Function => Some(Op::new(id, OpType::FunctionPrologue, &token)),
         Keyword::Fi => Some(Op::new(id, OpType::Fi, &token)),
         Keyword::If => Some(Op::new(id, OpType::If, &token)),
+        Keyword::Inline => None,
         Keyword::Return => Some(Op::new(id, OpType::Return, &token)),
         Keyword::Then => Some(Op::new(id, OpType::Then, &token)),
         Keyword::While => Some(Op::new(id, OpType::While, &token)),

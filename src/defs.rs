@@ -1,4 +1,5 @@
 use phf::phf_map;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use strum_macros::{Display, EnumString};
@@ -8,6 +9,13 @@ pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {
     '(' => Delimiter::OpenParen,
     ')' => Delimiter::CloseParen,
 };
+
+pub type IdentifierTable = HashMap<String, Identifier>;
+
+#[derive(Debug)]
+pub enum Identifier {
+    Function(Function),
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -124,6 +132,7 @@ pub enum OpType {
     FunctionCall,
     FunctionEpilogue,
     FunctionPrologue,
+    InlineFunctionCall,
     Intrinsic(Intrinsic),
     PushInt,
     PushStr,
@@ -145,7 +154,7 @@ pub enum OpType {
     Unknown,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Op {
     pub id: usize,
     pub ty: OpType,
@@ -162,7 +171,7 @@ impl Op {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parameter {
     pub name: Option<String>,
     pub ty: String,
@@ -173,17 +182,18 @@ pub struct Parameter {
 /// `str`
 /// `str int -> bool`
 /// `num1:int num2:int -> int bool`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Signature {
     pub params: Vec<Parameter>,
     pub returns: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
     pub signature: Signature,
     pub location: Location,
+    pub is_inline: bool,
     pub ops: Vec<Op>,
 }
 

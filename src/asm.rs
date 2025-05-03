@@ -1,10 +1,10 @@
-use crate::defs::{Function, Intrinsic, Op, OpType, Segment};
+use crate::defs::{Function, Identifier, IdentifierTable, Intrinsic, Op, OpType, Segment};
 
-pub fn generate_assembly_code(segments: &[Segment]) -> String {
+pub fn generate_assembly_code(segments: &[Segment], identifier_table: &IdentifierTable) -> String {
     let mut asm_blocks = Vec::new();
 
     asm_blocks.push(get_asm_bss_section().to_string());
-    asm_blocks.push(get_asm_text_section(segments));
+    asm_blocks.push(get_asm_text_section(segments, identifier_table));
     asm_blocks.push(get_asm_data_section(segments));
 
     let mut assembly_code = asm_blocks.join("\n\n");
@@ -19,7 +19,7 @@ fn get_asm_bss_section() -> &'static str {
     return_stack: .skip 1337*64"
 }
 
-fn get_asm_text_section(segments: &[Segment]) -> String {
+fn get_asm_text_section(segments: &[Segment], identifier_table: &IdentifierTable) -> String {
     let mut asm_blocks = Vec::new();
 
     let header = ".section .text
@@ -28,21 +28,27 @@ fn get_asm_text_section(segments: &[Segment]) -> String {
 
     for segment in segments {
         match segment {
-            Segment::Function(function) => asm_blocks.push(get_asm_for_function(function)),
+            Segment::Function(f) => asm_blocks.push(get_asm_for_function(f, identifier_table)),
         }
     }
 
     asm_blocks.join("\n\n")
 }
 
-fn get_asm_for_function(function: &Function) -> String {
-    let mut asm_blocks = Vec::new();
-    let label = get_asm_function_label(function);
-    asm_blocks.push(format!("{}:", label));
+fn get_asm_for_function(function: &Function, identifier_table: &IdentifierTable) -> String {
+    format!(
+        "{}:
+{}",
+        get_asm_function_label(function),
+        get_asm_for_function_ops(function, identifier_table)
+    )
+}
 
+fn get_asm_for_function_ops(function: &Function, identifier_table: &IdentifierTable) -> String {
+    let mut asm_blocks = Vec::new();
     for op in &function.ops {
         asm_blocks.push(get_asm_comment_for_op(&op, function));
-        asm_blocks.push(get_asm_code_for_op(&op, function));
+        asm_blocks.push(get_asm_code_for_op(&op, function, identifier_table));
     }
 
     asm_blocks.join("\n")
@@ -108,7 +114,7 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
     format!("{}_s{}", function.name, op.id)
 }
 
-fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
+fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &IdentifierTable) -> String {
     match &op.ty {
         OpType::Break => get_asm_break(op, function),
         OpType::Continue => get_asm_continue(op, function),
@@ -116,9 +122,25 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
         OpType::Done => get_asm_done(op, function),
         OpType::Fi => get_asm_fi(op, function),
         OpType::FunctionCall => get_asm_function_call(&op.token.value),
-        OpType::FunctionEpilogue => get_asm_function_epilogue(function).to_string(),
-        OpType::FunctionPrologue => get_asm_function_prologue(function).to_string(),
+        OpType::FunctionEpilogue => match function.is_inline {
+            true => "".to_string(),
+            false => get_asm_function_epilogue(function).to_string(),
+        },
+        OpType::FunctionPrologue => match function.is_inline {
+            true => "".to_string(),
+            false => get_asm_function_prologue(function).to_string(),
+        },
         OpType::If => "".to_string(),
+        OpType::InlineFunctionCall => {
+            let function = match identifier_table.get(&op.token.value) {
+                Some(Identifier::Function(f)) => f,
+                None => {
+                    eprintln!("Unknown function identifier {}", op.token.value);
+                    panic!()
+                }
+            };
+            get_asm_for_function_ops(function, identifier_table)
+        }
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::PushInt => get_asm_push_int(op),
         OpType::PushStr => get_asm_push_str(op, function),
@@ -130,7 +152,6 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
             dbg!(op);
             todo!()
         }
-        _ => todo!(),
     }
 }
 

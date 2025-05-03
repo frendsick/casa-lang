@@ -15,10 +15,10 @@ const CODE_FILE: &str = "test.stak";
 fn main() -> io::Result<()> {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let code_file = crate_dir.join(CODE_FILE);
-    let segments = lexer::parse_segments_from_file(code_file)?;
+    let (segments, symbol_table) = lexer::parse_code_file(code_file)?;
     dbg!(&segments);
 
-    let assembly_code = asm::generate_assembly_code(&segments);
+    let assembly_code = asm::generate_assembly_code(&segments, &symbol_table);
     let assembly_file = crate_dir.join(ASSEMBLY_FILE);
     std::fs::write(&assembly_file, &assembly_code)?;
     println!("{}", &assembly_code);
