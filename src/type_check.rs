@@ -31,6 +31,7 @@ fn type_check_function(
         match &op.ty {
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
+            OpType::PushInt => type_stack.push("int".to_string()),
             _ => todo!(),
         }
     }
