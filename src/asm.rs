@@ -132,14 +132,14 @@ fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &Identifi
         },
         OpType::If => "".to_string(),
         OpType::InlineFunctionCall => {
-            let function = match identifier_table.get(&op.token.value) {
+            let called_function = match identifier_table.get(&op.token.value) {
                 Some(Identifier::Function(f)) => f,
                 None => {
                     eprintln!("Unknown function identifier {}", op.token.value);
                     panic!()
                 }
             };
-            get_asm_for_function_ops(function, identifier_table)
+            get_asm_for_function_ops(called_function, identifier_table)
         }
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::PushInt => get_asm_push_int(op),
