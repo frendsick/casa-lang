@@ -12,7 +12,7 @@ use std::path::Path;
 use type_check::type_check_program;
 
 const ASSEMBLY_FILE: &str = "test.asm";
-const CODE_FILE: &str = "test.stak";
+const CODE_FILE: &str = "test.casa";
 
 fn main() -> io::Result<()> {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
