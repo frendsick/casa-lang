@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "casa-lang"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "phf",
+ "strum",
+ "strum_macros",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -116,16 +126,6 @@ name = "siphasher"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
-
-[[package]]
-name = "stak-lang"
-version = "0.1.0"
-dependencies = [
- "indexmap",
- "phf",
- "strum",
- "strum_macros",
-]
 
 [[package]]
 name = "strum"
