@@ -170,11 +170,18 @@ fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &Identifi
 
 fn get_asm_function_epilogue(function: &Function) -> String {
     if function.name == "main" {
-        "movq $0, %rdi
+        let return_value_to_rdi = match function.signature.returns.as_slice() {
+            [] => "movq $0, %rdi",              // Return 0
+            [ty] if ty == "int" => "popq %rdi", // Get return value from the stack
+            _ => unreachable!("`main` function should return int or nothing"),
+        };
+        format!(
+            "{}
 movq $60, %rax
 syscall
-ret"
-        .to_string()
+ret",
+            return_value_to_rdi
+        )
     } else {
         format!(
             "pushq (%r14)
