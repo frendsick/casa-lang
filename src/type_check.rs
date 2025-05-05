@@ -1,8 +1,7 @@
 use indexmap::IndexMap;
 
 use crate::common::{
-    Function, Identifier, IdentifierTable, Intrinsic, Location, Op, OpType, Parameter,
-    ParameterSlice, Segment,
+    Function, Identifier, IdentifierTable, Intrinsic, Location, Op, OpType, ParameterSlice, Segment,
 };
 
 #[derive(Debug)]
@@ -58,7 +57,7 @@ impl TypeStack for Vec<TypeNode> {
     fn peek_type(&self, expected_type: &str) -> Result<(), TypeCheckError> {
         let node = self.peek_stack()?;
         (node.ty == expected_type)
-            .then(|| ())
+            .then_some(())
             .ok_or(TypeCheckError::ValueError)
     }
 
@@ -69,7 +68,7 @@ impl TypeStack for Vec<TypeNode> {
     fn pop_type(&mut self, expected_type: &str) -> Result<(), TypeCheckError> {
         let node = self.pop_stack()?;
         (node.ty == expected_type)
-            .then(|| ())
+            .then_some(())
             .ok_or(TypeCheckError::ValueError)
     }
 
@@ -123,10 +122,11 @@ fn type_check_function(
 
     // Verify that stack matches the function's return types
     matching_stacks(&type_stack, &return_stack)
-        .then(|| ())
+        .then_some(())
         .ok_or(TypeCheckError::InvalidSignature)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn type_check_ops(
     type_stack: &mut Vec<TypeNode>,
     variables: &mut IndexMap<String, String>,
@@ -142,11 +142,11 @@ fn type_check_ops(
         match &op.ty {
             OpType::Bind => *peek_index = 0,
             OpType::Break => match stack_before_branch {
-                Some(stack) => type_check_break(&type_stack, stack)?,
+                Some(stack) => type_check_break(type_stack, stack)?,
                 None => Err(TypeCheckError::SyntaxError)?,
             },
             OpType::Continue => match stack_before_branch {
-                Some(stack) => type_check_continue(&type_stack, stack)?,
+                Some(stack) => type_check_continue(type_stack, stack)?,
                 None => Err(TypeCheckError::SyntaxError)?,
             },
             OpType::Do => match stack_before_branch {
@@ -164,7 +164,7 @@ fn type_check_ops(
             OpType::FunctionCall | OpType::InlineFunctionCall => {
                 match global_identifiers.get(&op.token.value) {
                     Some(Identifier::Function(function)) => {
-                        type_check_function_call(type_stack, &op.token.location, &function)?;
+                        type_check_function_call(type_stack, &op.token.location, function)?;
                     }
                     _ => Err(TypeCheckError::UnknownIdentifier)?,
                 }
@@ -173,7 +173,7 @@ fn type_check_ops(
             OpType::FunctionPrologue => {}
             OpType::If => {}
             OpType::Intrinsic(intrinsic) => {
-                type_check_intrinsic(type_stack, &op.token.location, &intrinsic)?
+                type_check_intrinsic(type_stack, &op.token.location, intrinsic)?
             }
             OpType::Peek => {}
             OpType::PeekBind => {
@@ -181,12 +181,12 @@ fn type_check_ops(
                 *peek_index += 1;
             }
             OpType::PushBind => {
-                type_check_push_bind(type_stack, &variables, &op.token.location, &op.token.value)?
+                type_check_push_bind(type_stack, variables, &op.token.location, &op.token.value)?
             }
             OpType::PushInt => type_stack.push_type("int", &op.token.location),
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
-            OpType::Return => matching_stacks(&type_stack, return_stack)
-                .then(|| ())
+            OpType::Return => matching_stacks(type_stack, return_stack)
+                .then_some(())
                 .ok_or(TypeCheckError::InvalidStackState)?,
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(type_stack, variables, &op.token.value)?,
@@ -230,7 +230,7 @@ fn type_check_break(
     stack_before_while: &[TypeNode],
 ) -> Result<(), TypeCheckError> {
     matching_stacks(type_stack, stack_before_while)
-        .then(|| ())
+        .then_some(())
         .ok_or(TypeCheckError::InvalidStackState)
 }
 
@@ -239,7 +239,7 @@ fn type_check_continue(
     stack_before_while: &[TypeNode],
 ) -> Result<(), TypeCheckError> {
     matching_stacks(type_stack, stack_before_while)
-        .then(|| ())
+        .then_some(())
         .ok_or(TypeCheckError::InvalidStackState)
 }
 
@@ -249,7 +249,7 @@ fn type_check_do(
 ) -> Result<(), TypeCheckError> {
     type_stack.pop_type("bool")?;
     matching_stacks(type_stack, stack_before_while)
-        .then(|| ())
+        .then_some(())
         .ok_or(TypeCheckError::BranchModifiedStack)
 }
 
@@ -258,7 +258,7 @@ fn type_check_done(
     stack_before_while: &[TypeNode],
 ) -> Result<(), TypeCheckError> {
     matching_stacks(type_stack, stack_before_while)
-        .then(|| ())
+        .then_some(())
         .ok_or(TypeCheckError::BranchModifiedStack)
 }
 
@@ -267,7 +267,7 @@ fn type_check_fi(
     stack_before_while: &[TypeNode],
 ) -> Result<(), TypeCheckError> {
     matching_stacks(type_stack, stack_before_while)
-        .then(|| ())
+        .then_some(())
         .ok_or(TypeCheckError::BranchModifiedStack)
 }
 
@@ -280,7 +280,7 @@ fn type_check_function_call(
         type_stack.pop_type(&param.ty)?;
     }
     for return_type in &function.signature.returns {
-        type_stack.push_type(&return_type, location);
+        type_stack.push_type(return_type, location);
     }
     Ok(())
 }
@@ -373,7 +373,7 @@ fn matching_stacks(stack1: &[TypeNode], stack2: &[TypeNode]) -> bool {
             return false;
         }
     }
-    return true;
+    true
 }
 
 fn type_check_arithmetic(
@@ -474,7 +474,7 @@ fn type_check_syscall(
 ) -> Result<(), TypeCheckError> {
     assert!(argc <= 6);
 
-    let syscall = type_stack.pop_type("int")?;
+    type_stack.pop_type("int")?;
     for _ in 0..argc {
         type_stack.pop_stack()?;
     }

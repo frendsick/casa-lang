@@ -4,15 +4,12 @@ use crate::common::{
 };
 
 pub fn generate_assembly_code(segments: &[Segment], identifier_table: &IdentifierTable) -> String {
-    let mut asm_blocks = Vec::new();
-
-    asm_blocks.push(get_asm_bss_section().to_string());
-    asm_blocks.push(get_asm_text_section(segments, identifier_table));
-    asm_blocks.push(get_asm_data_section(segments));
-
-    let mut assembly_code = asm_blocks.join("\n\n");
-    assembly_code.push('\n');
-    assembly_code
+    [
+        get_asm_bss_section().to_string(),
+        get_asm_text_section(segments, identifier_table),
+        get_asm_data_section(segments),
+    ]
+    .join("\n\n")
 }
 
 fn get_asm_bss_section() -> &'static str {
@@ -50,8 +47,8 @@ fn get_asm_for_function(function: &Function, identifier_table: &IdentifierTable)
 fn get_asm_for_function_ops(function: &Function, identifier_table: &IdentifierTable) -> String {
     let mut asm_blocks = Vec::new();
     for op in &function.ops {
-        asm_blocks.push(get_asm_comment_for_op(&op, function));
-        asm_blocks.push(get_asm_code_for_op(&op, function, identifier_table));
+        asm_blocks.push(get_asm_comment_for_op(op, function));
+        asm_blocks.push(get_asm_code_for_op(op, function, identifier_table));
     }
 
     asm_blocks.join("\n")
@@ -73,7 +70,7 @@ fn get_asm_data_section(segments: &[Segment]) -> String {
     for segment in segments {
         match segment {
             Segment::Function(function) => {
-                asm_blocks.push(get_asm_data_section_entries_function(&function))
+                asm_blocks.push(get_asm_data_section_entries_function(function))
             }
         }
     }
@@ -84,12 +81,9 @@ fn get_asm_data_section(segments: &[Segment]) -> String {
 fn get_asm_data_section_entries_function(function: &Function) -> String {
     let mut asm_blocks = Vec::new();
     for op in &function.ops {
-        match op.ty {
-            OpType::PushStr => {
-                let string_variable = generate_asm_string_variable(&op, function);
-                asm_blocks.push(string_variable);
-            }
-            _ => {}
+        if op.ty == OpType::PushStr {
+            let string_variable = generate_asm_string_variable(op, function);
+            asm_blocks.push(string_variable);
         }
     }
     asm_blocks.join("\n")
@@ -158,10 +152,6 @@ fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &Identifi
         OpType::While => get_asm_while(op, function),
         // All unknown ops should be resolved before assembly generation
         OpType::Unknown => {
-            dbg!(op);
-            todo!()
-        }
-        _ => {
             dbg!(op);
             todo!()
         }

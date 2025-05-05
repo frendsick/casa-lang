@@ -6,16 +6,16 @@ use crate::common::{
 };
 use std::collections::HashMap;
 use std::io;
-use std::path::PathBuf;
+use std::path::Path;
 
 static OP_COUNTER: Counter = Counter::new();
 
-pub fn parse_code_file(file: PathBuf) -> io::Result<(Vec<Segment>, IdentifierTable)> {
-    let code = std::fs::read_to_string(&file)?;
+pub fn parse_code_file(file: &Path) -> io::Result<(Vec<Segment>, IdentifierTable)> {
+    let code = std::fs::read_to_string(file)?;
 
     let mut segments = Vec::new();
     let mut cursor = 0;
-    while let Some(segment) = parse_next_segment(&code, &mut cursor, &file) {
+    while let Some(segment) = parse_next_segment(&code, &mut cursor, file) {
         segments.push(segment);
     }
 
@@ -29,7 +29,7 @@ pub fn parse_code_file(file: PathBuf) -> io::Result<(Vec<Segment>, IdentifierTab
     Ok((segments, global_identifiers))
 }
 
-fn parse_next_segment(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Segment> {
+fn parse_next_segment(code: &str, cursor: &mut usize, file: &Path) -> Option<Segment> {
     parse_over_whitespace(code, cursor);
 
     let keyword = peek_until_whitespace_or_delimiter(code, *cursor);
@@ -54,7 +54,7 @@ fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
 fn resolve_identifiers(segments: &mut [Segment], global_identifiers: &IdentifierTable) {
     for segment in segments.iter_mut() {
         let Segment::Function(func) = segment;
-        resolve_identifiers_for_function(func, &global_identifiers);
+        resolve_identifiers_for_function(func, global_identifiers);
     }
 }
 
@@ -85,7 +85,7 @@ enum Binding {
     Peek,
 }
 
-fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Function> {
+fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Function> {
     let mut ops = Vec::new();
 
     // "inline"
@@ -116,7 +116,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
     // Function tokens
     let mut variables = IndexSet::new();
     let mut binding: Option<Binding> = None;
-    while let Some(token) = get_next_token(&code, cursor, &file) {
+    while let Some(token) = get_next_token(code, cursor, file) {
         match &token.ty {
             TokenType::Delimiter(_) => {}
             TokenType::Identifier => {
@@ -195,7 +195,7 @@ fn parse_function_params(code: &str, cursor: &mut usize) -> Vec<Parameter> {
             },
             Some(_) => {
                 let ty = parse_until_whitespace_or_delimiter(code, cursor);
-                assert!(ty.len() > 0);
+                assert!(!ty.is_empty());
                 Parameter {
                     name: Some(name_or_type),
                     ty: ty.to_string(),
@@ -245,21 +245,21 @@ fn get_literal_op(literal: &Literal, token: &Token) -> Op {
 fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
     let id = OP_COUNTER.fetch_add();
     match keyword {
-        Keyword::Bind => Some(Op::new(id, OpType::Bind, &token)),
-        Keyword::Break => Some(Op::new(id, OpType::Break, &token)),
-        Keyword::Continue => Some(Op::new(id, OpType::Continue, &token)),
-        Keyword::Do => Some(Op::new(id, OpType::Do, &token)),
-        Keyword::Done => Some(Op::new(id, OpType::Done, &token)),
-        Keyword::End => Some(Op::new(id, OpType::FunctionEpilogue, &token)),
-        Keyword::Function => Some(Op::new(id, OpType::FunctionPrologue, &token)),
-        Keyword::Fi => Some(Op::new(id, OpType::Fi, &token)),
-        Keyword::If => Some(Op::new(id, OpType::If, &token)),
+        Keyword::Bind => Some(Op::new(id, OpType::Bind, token)),
+        Keyword::Break => Some(Op::new(id, OpType::Break, token)),
+        Keyword::Continue => Some(Op::new(id, OpType::Continue, token)),
+        Keyword::Do => Some(Op::new(id, OpType::Do, token)),
+        Keyword::Done => Some(Op::new(id, OpType::Done, token)),
+        Keyword::End => Some(Op::new(id, OpType::FunctionEpilogue, token)),
+        Keyword::Function => Some(Op::new(id, OpType::FunctionPrologue, token)),
+        Keyword::Fi => Some(Op::new(id, OpType::Fi, token)),
+        Keyword::If => Some(Op::new(id, OpType::If, token)),
         Keyword::Inline => None,
-        Keyword::Peek => Some(Op::new(id, OpType::Peek, &token)),
-        Keyword::Return => Some(Op::new(id, OpType::Return, &token)),
-        Keyword::Take => Some(Op::new(id, OpType::Take, &token)),
-        Keyword::Then => Some(Op::new(id, OpType::Then, &token)),
-        Keyword::While => Some(Op::new(id, OpType::While, &token)),
+        Keyword::Peek => Some(Op::new(id, OpType::Peek, token)),
+        Keyword::Return => Some(Op::new(id, OpType::Return, token)),
+        Keyword::Take => Some(Op::new(id, OpType::Take, token)),
+        Keyword::Then => Some(Op::new(id, OpType::Then, token)),
+        Keyword::While => Some(Op::new(id, OpType::While, token)),
         _ => todo!(),
     }
 }
@@ -287,7 +287,7 @@ fn parse_over_word<'a>(code: &'a str, cursor: &'a mut usize, word: &'a str) -> O
     }
 }
 
-fn get_next_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Token> {
+fn get_next_token(code: &str, cursor: &mut usize, file: &Path) -> Option<Token> {
     parse_over_whitespace(code, cursor);
 
     let location = get_location(code, *cursor, file);
@@ -328,7 +328,7 @@ fn get_next_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Toke
     }
 }
 
-fn get_location(code: &str, cursor: usize, file: &PathBuf) -> Location {
+fn get_location(code: &str, cursor: usize, file: &Path) -> Location {
     let mut row = 1;
     let mut last_line_start_index = 0;
 
@@ -363,7 +363,7 @@ fn parse_over_whitespace(code: &str, cursor: &mut usize) {
     *cursor = code.len();
 }
 
-fn peek_until_whitespace_or_delimiter<'a>(code: &'a str, cursor: usize) -> &'a str {
+fn peek_until_whitespace_or_delimiter(code: &str, cursor: usize) -> &str {
     for (i, char) in code[cursor..].char_indices() {
         if char.is_whitespace() || DELIMITERS.get(&char).is_some() {
             return &code[cursor..cursor + i];
@@ -379,7 +379,7 @@ fn parse_until_whitespace_or_delimiter<'a>(code: &'a str, cursor: &'a mut usize)
     parsed
 }
 
-fn parse_string_literal_token(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Token> {
+fn parse_string_literal_token(code: &str, cursor: &mut usize, file: &Path) -> Option<Token> {
     let location = get_location(code, *cursor, file);
     let unparsed = get_unparsed(code, *cursor);
     let mut chars = unparsed.char_indices();

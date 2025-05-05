@@ -25,7 +25,7 @@ fn compile_with_as(asm_path: &Path, obj_path: &Path) -> io::Result<()> {
         .status()?;
 
     if !status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Compiling failed"));
+        return Err(io::Error::other("Compiling failed"));
     }
 
     Ok(())
@@ -39,7 +39,7 @@ fn link_with_ld(obj_path: &Path, exe_path: &Path) -> io::Result<()> {
         .status()?;
 
     if !status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Linking failed"));
+        return Err(io::Error::other("Linking failed"));
     }
 
     Ok(())
