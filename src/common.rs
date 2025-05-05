@@ -32,6 +32,7 @@ pub enum Identifier {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Delimiter(Delimiter),
+    EndOfFile,
     Identifier,
     Intrinsic(Intrinsic),
     Keyword(Keyword),

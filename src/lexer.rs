@@ -114,7 +114,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Functio
 
     // "fun"
     let location = get_location(code, *cursor, file);
-    let fun_token = get_next_token(code, cursor, file)?;
+    let fun_token = get_next_token(code, cursor, file);
     if fun_token.value != "fun" {
         fatal_error(
             &location,
@@ -141,14 +141,30 @@ fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Functio
     // Function signature
     let signature = parse_function_signature(code, cursor);
     validate_signature(&name, &signature);
-    parse_over_word(code, cursor, ":");
+
+    if parse_over_word(code, cursor, ":").is_none() {
+        let token = get_next_token(code, cursor, file);
+        fatal_error(
+            &get_location(code, *cursor, file),
+            CasaError::SyntaxError,
+            &format!("{}: Expected ':' but got '{}'", error_prefix, token.value),
+        )
+    }
 
     // Function tokens
     let mut variables = IndexSet::new();
     let mut binding: Option<Binding> = None;
-    while let Some(token) = get_next_token(code, cursor, file) {
+    loop {
+        let token = get_next_token(code, cursor, file);
         match &token.ty {
             TokenType::Delimiter(_) => {}
+            TokenType::EndOfFile => {
+                let error_message = format!(
+                    "{}: The '{}' function is missing the 'end' token",
+                    error_prefix, name
+                );
+                fatal_error(&token.location, CasaError::SyntaxError, &error_message);
+            }
             TokenType::Identifier => {
                 ops.push(get_identifier_op(&token, &binding));
                 if binding.is_some() {
@@ -317,44 +333,52 @@ fn parse_over_word<'a>(code: &'a str, cursor: &'a mut usize, word: &'a str) -> O
     }
 }
 
-fn get_next_token(code: &str, cursor: &mut usize, file: &Path) -> Option<Token> {
+fn get_next_token(code: &str, cursor: &mut usize, file: &Path) -> Token {
     parse_over_whitespace(code, cursor);
 
     let location = get_location(code, *cursor, file);
     let unparsed = get_unparsed(code, *cursor);
     let mut chars = unparsed.chars();
-    let first = chars.next()?;
-    assert!(!first.is_whitespace());
+    let first = chars.next();
 
     // Handle tokens recognized by the first character
     match first {
-        '"' => return parse_string_literal_token(code, cursor, file),
-        c if let Some(delimiter) = DELIMITERS.get(&c) => {
+        Some('"') => {
+            if let Some(token) = parse_string_literal_token(code, cursor, file) {
+                return token;
+            }
+
+            let value = parse_until_whitespace_or_delimiter(code, cursor);
+            let error_message = format!("Invalid string literal token: '{}'", value);
+            fatal_error(&location, CasaError::SyntaxError, &error_message);
+        }
+        Some(c) if let Some(delimiter) = DELIMITERS.get(&c) => {
             *cursor += 1;
-            return Some(Token::new(
+            return Token::new(
                 &c.to_string(),
                 TokenType::Delimiter(delimiter.clone()),
                 location,
-            ));
+            );
         }
-        _ => {}
+        Some(_) => {}
+        None => return Token::new("", TokenType::EndOfFile, location),
     }
 
     // Handle other tokens
     let value = parse_until_whitespace_or_delimiter(code, cursor);
     match value {
-        v if let Ok(integer) = v.parse::<i32>() => Some(Token::new(
+        v if let Ok(integer) = v.parse::<i32>() => Token::new(
             value,
             TokenType::Literal(Literal::Integer(integer)),
             location,
-        )),
+        ),
         v if let Ok(intrinsic) = v.parse::<Intrinsic>() => {
-            Some(Token::new(value, TokenType::Intrinsic(intrinsic), location))
+            Token::new(value, TokenType::Intrinsic(intrinsic), location)
         }
         v if let Ok(keyword) = v.parse::<Keyword>() => {
-            Some(Token::new(value, TokenType::Keyword(keyword), location))
+            Token::new(value, TokenType::Keyword(keyword), location)
         }
-        _ => Some(Token::new(value, TokenType::Identifier, location)),
+        _ => Token::new(value, TokenType::Identifier, location),
     }
 }
 
