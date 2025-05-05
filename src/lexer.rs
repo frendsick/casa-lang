@@ -110,6 +110,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
 
     // Function signature
     let signature = parse_function_signature(code, cursor);
+    validate_signature(&name, &signature);
     parse_over_word(code, cursor, ":");
 
     // Function tokens
@@ -154,6 +155,23 @@ fn parse_function(code: &str, cursor: &mut usize, file: &PathBuf) -> Option<Func
         ops,
         variables,
     })
+}
+
+fn validate_signature(function_name: &str, signature: &Signature) {
+    // Only `main` function has exeptions
+    if function_name != "main" {
+        return;
+    }
+
+    if !signature.params.is_empty() {
+        panic!("`main` function should not have parameters");
+    }
+
+    match signature.returns.as_slice() {
+        [] => {}
+        [ty] if ty == "int" => {}
+        _ => panic!("`main` function should return int or nothing"),
+    }
 }
 
 fn parse_function_signature(code: &str, cursor: &mut usize) -> Signature {
