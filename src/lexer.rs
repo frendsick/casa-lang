@@ -31,7 +31,15 @@ pub fn parse_code_file(file: &Path) -> (Vec<Segment>, IdentifierTable) {
     }
 
     // Make sure the whole code was parsed
-    assert!(cursor >= code.len());
+    if cursor < code.len() {
+        let error_message = format!(
+            "The lexer could not parse the whole file '{}'\n\nUnparsed code:\n\n{}",
+            file.display(),
+            &code[cursor..]
+        );
+        let location = &get_location(&code, cursor, file);
+        fatal_error(location, CasaError::SyntaxError, &error_message);
+    }
 
     // Identifier resolution was not performed during initial parsing
     let global_identifiers = get_global_identifiers(&segments);
