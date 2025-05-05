@@ -34,7 +34,7 @@ fn parse_next_segment(code: &str, cursor: &mut usize, file: &Path) -> Option<Seg
 
     let keyword = peek_until_whitespace_or_delimiter(code, *cursor);
     match keyword {
-        "function" | "inline" => Some(Segment::Function(parse_function(code, cursor, file)?)),
+        "fun" | "inline" => Some(Segment::Function(parse_function(code, cursor, file)?)),
         _ => None,
     }
 }
@@ -92,10 +92,10 @@ fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Functio
     let is_inline = parse_over_word(code, cursor, "inline").is_some();
     parse_over_whitespace(code, cursor);
 
-    // "function"
+    // "fun"
     let location = get_location(code, *cursor, file);
     let function_token = get_next_token(code, cursor, file)?;
-    assert!(function_token.value == "function");
+    assert!(function_token.value == "fun");
     // Add function prologue if the function is not inline
     if !is_inline {
         let id = OP_COUNTER.fetch_add();
@@ -251,7 +251,7 @@ fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
         Keyword::Do => Some(Op::new(id, OpType::Do, token)),
         Keyword::Done => Some(Op::new(id, OpType::Done, token)),
         Keyword::End => Some(Op::new(id, OpType::FunctionEpilogue, token)),
-        Keyword::Function => Some(Op::new(id, OpType::FunctionPrologue, token)),
+        Keyword::Fun => Some(Op::new(id, OpType::FunctionPrologue, token)),
         Keyword::Fi => Some(Op::new(id, OpType::Fi, token)),
         Keyword::If => Some(Op::new(id, OpType::If, token)),
         Keyword::Inline => None,

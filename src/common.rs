@@ -50,7 +50,7 @@ pub enum Keyword {
     End,
     Enum,
     Fi,
-    Function,
+    Fun,
     If,
     Inline,
     Peek,
