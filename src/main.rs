@@ -3,6 +3,7 @@
 mod asm;
 mod common;
 mod compile;
+mod error;
 mod lexer;
 mod type_check;
 
