@@ -1,9 +1,18 @@
 use indexmap::IndexSet;
 use phf::phf_map;
 use std::collections::HashMap;
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use strum_macros::{Display, EnumString};
+
+#[derive(Display)]
+pub enum Ansi {
+    #[strum(to_string = "\x1B[0m")]
+    Reset,
+    #[strum(to_string = "\x1B[33m")]
+    Yellow,
+}
 
 pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {
     ':' => Delimiter::Colon,
@@ -112,6 +121,22 @@ pub struct Location {
     pub file: PathBuf,
     pub row: usize,
     pub col: usize,
+}
+
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}:{}{}{}:{}{}{}",
+            self.file.display(),
+            Ansi::Yellow,
+            self.row,
+            Ansi::Reset,
+            Ansi::Yellow,
+            self.col,
+            Ansi::Reset
+        )
+    }
 }
 
 #[derive(Debug, Clone)]
