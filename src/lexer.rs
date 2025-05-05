@@ -106,6 +106,7 @@ enum Binding {
 
 fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Function> {
     let mut ops = Vec::new();
+    let error_prefix = "Error occurred while parsing a function";
 
     // "inline"
     let is_inline = parse_over_word(code, cursor, "inline").is_some();
@@ -113,12 +114,22 @@ fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Functio
 
     // "fun"
     let location = get_location(code, *cursor, file);
-    let function_token = get_next_token(code, cursor, file)?;
-    assert!(function_token.value == "fun");
+    let fun_token = get_next_token(code, cursor, file)?;
+    if fun_token.value != "fun" {
+        fatal_error(
+            &location,
+            CasaError::SyntaxError,
+            &format!(
+                "{}: Expected 'fun' but got '{}'",
+                error_prefix, fun_token.value
+            ),
+        )
+    }
+
     // Add function prologue if the function is not inline
     if !is_inline {
         let id = OP_COUNTER.fetch_add();
-        let prologue = Op::new(id, OpType::FunctionPrologue, &function_token);
+        let prologue = Op::new(id, OpType::FunctionPrologue, &fun_token);
         ops.push(prologue);
     }
     parse_over_whitespace(code, cursor);
