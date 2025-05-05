@@ -4,14 +4,25 @@ use crate::common::{
     Counter, DELIMITERS, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal,
     Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType,
 };
+use crate::error::{CasaError, colored_error_tag, fatal_error};
 use std::collections::HashMap;
-use std::io;
 use std::path::Path;
 
 static OP_COUNTER: Counter = Counter::new();
 
-pub fn parse_code_file(file: &Path) -> io::Result<(Vec<Segment>, IdentifierTable)> {
-    let code = std::fs::read_to_string(file)?;
+pub fn parse_code_file(file: &Path) -> (Vec<Segment>, IdentifierTable) {
+    let code = match std::fs::read_to_string(file) {
+        Ok(code) => code,
+        Err(err) => {
+            eprintln!(
+                "{} Cannot read file '{}': {}",
+                colored_error_tag(CasaError::FileNotFound),
+                file.display(),
+                err
+            );
+            std::process::exit(1);
+        }
+    };
 
     let mut segments = Vec::new();
     let mut cursor = 0;
@@ -26,7 +37,7 @@ pub fn parse_code_file(file: &Path) -> io::Result<(Vec<Segment>, IdentifierTable
     let global_identifiers = get_global_identifiers(&segments);
     resolve_identifiers(&mut segments, &global_identifiers);
 
-    Ok((segments, global_identifiers))
+    (segments, global_identifiers)
 }
 
 fn parse_next_segment(code: &str, cursor: &mut usize, file: &Path) -> Option<Segment> {

@@ -18,7 +18,7 @@ const CODE_FILE: &str = "test.casa";
 fn main() -> io::Result<()> {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let code_file = crate_dir.join(CODE_FILE);
-    let (segments, global_identifiers) = lexer::parse_code_file(&code_file)?;
+    let (segments, global_identifiers) = lexer::parse_code_file(&code_file);
     dbg!(&segments);
 
     type_check_program(&segments, &global_identifiers).unwrap();

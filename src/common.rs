@@ -10,6 +10,8 @@ use strum_macros::{Display, EnumString};
 pub enum Ansi {
     #[strum(to_string = "\x1B[0m")]
     Reset,
+    #[strum(to_string = "\x1B[91m")]
+    Red,
     #[strum(to_string = "\x1B[33m")]
     Yellow,
 }
