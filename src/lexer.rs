@@ -260,8 +260,9 @@ fn parse_function(parser: &mut Parser) -> Function {
     parser.skip_whitespace();
 
     // Function signature
+    let signature_location = parser.get_location();
     let signature = parse_function_signature(parser, &function_name);
-    validate_signature(&function_name, &signature);
+    validate_signature(&function_name, &signature, &signature_location);
     parser.skip_whitespace();
 
     // "::"
@@ -327,20 +328,33 @@ fn parse_function(parser: &mut Parser) -> Function {
     }
 }
 
-fn validate_signature(function_name: &str, signature: &Signature) {
+fn validate_signature(function_name: &str, signature: &Signature, location: &Location) {
     // Only `main` function has exeptions
     if function_name != "main" {
         return;
     }
 
-    if !signature.params.is_empty() {
-        panic!("`main` function should not have parameters");
-    }
+    match (
+        signature.params.is_empty(),
+        signature.return_types.as_slice(),
+    ) {
+        (true, []) => {}
+        (true, [ty]) if ty == "int" => {}
+        _ => fatal_error(
+            location,
+            CasaError::SyntaxError,
+            &format!(
+                "Invalid signature for 'main' function:
 
-    match signature.return_types.as_slice() {
-        [] => {}
-        [ty] if ty == "int" => {}
-        _ => panic!("`main` function should return int or nothing"),
+    `fun main {}`
+
+Expected one of the following:
+
+    `fun main`
+    `fun main -> int`",
+                signature,
+            ),
+        ),
     }
 }
 

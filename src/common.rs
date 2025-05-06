@@ -1,4 +1,5 @@
 use indexmap::IndexSet;
+use itertools::Itertools;
 use phf::phf_map;
 use std::collections::HashMap;
 use std::fmt;
@@ -222,6 +223,15 @@ pub struct Parameter {
     pub ty: String,
 }
 
+impl fmt::Display for Parameter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(name) = &self.name {
+            write!(f, "{}:", name)?;
+        }
+        write!(f, "{}", self.ty)
+    }
+}
+
 pub trait ParameterSlice {
     fn get_types(&self) -> Vec<String>;
 }
@@ -241,6 +251,21 @@ impl ParameterSlice for [Parameter] {
 pub struct Signature {
     pub params: Vec<Parameter>,
     pub return_types: Vec<String>,
+}
+
+impl fmt::Display for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.params.is_empty() {
+            write!(f, "{}", self.params.iter().join(" "))?;
+        }
+        if !self.return_types.is_empty() {
+            if !self.params.is_empty() {
+                write!(f, " ")?; // Space before '->' if params exist
+            }
+            write!(f, "-> {}", self.return_types.iter().join(" "))?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
