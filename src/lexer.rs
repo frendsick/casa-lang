@@ -5,25 +5,24 @@ use crate::common::{
 use crate::error::{CasaError, colored_error_tag, fatal_error};
 use indexmap::IndexSet;
 use std::collections::HashMap;
-use std::io;
+use std::fs;
 use std::path::Path;
 
 static OP_COUNTER: Counter = Counter::new();
 
 struct Parser<'a> {
-    pub code: String,
+    pub code: &'a str,
     pub cursor: usize,
     pub file: &'a Path,
 }
 
 impl Parser<'_> {
-    fn from_file(file: &Path) -> io::Result<Parser> {
-        let code = std::fs::read_to_string(file)?;
-        Ok(Parser {
+    fn new<'a>(code: &'a str, file: &'a Path) -> Parser<'a> {
+        Parser {
             code,
             cursor: 0,
             file,
-        })
+        }
     }
 
     /// Get unparsed code slice
@@ -121,8 +120,8 @@ impl Parser<'_> {
 }
 
 pub fn parse_code_file(file: &Path) -> (Vec<Segment>, IdentifierTable) {
-    let mut parser = match Parser::from_file(file) {
-        Ok(parser) => parser,
+    let code = match fs::read_to_string(file) {
+        Ok(code) => code,
         Err(error) => {
             eprintln!(
                 "{} Cannot read file '{}': {}",
@@ -134,6 +133,7 @@ pub fn parse_code_file(file: &Path) -> (Vec<Segment>, IdentifierTable) {
         }
     };
 
+    let mut parser = Parser::new(&code, file);
     let mut segments = Vec::new();
     while let Some(segment) = parse_next_segment(&mut parser) {
         segments.push(segment);
