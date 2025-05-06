@@ -165,7 +165,7 @@ fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
     parser.skip_whitespace();
     let keyword = parser.peek_word();
     match keyword {
-        "fun" | "inline" => Some(Segment::Function(parse_function(parser)?)),
+        "fun" | "inline" => Some(Segment::Function(parse_function(parser))),
         _ => fatal_error(
             &parser.get_location(),
             CasaError::SyntaxError,
@@ -226,7 +226,7 @@ enum Binding {
     Peek,
 }
 
-fn parse_function(parser: &mut Parser) -> Option<Function> {
+fn parse_function(parser: &mut Parser) -> Function {
     let mut ops = Vec::new();
     let error_prefix = "Error occurred while parsing a function";
 
@@ -300,7 +300,7 @@ fn parse_function(parser: &mut Parser) -> Option<Function> {
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
             TokenType::Keyword(Keyword::End) => {
                 if !is_inline {
-                    ops.push(get_keyword_op(&Keyword::End, &token)?);
+                    ops.push(get_keyword_op(&Keyword::End, &token).unwrap());
                 }
                 break;
             }
@@ -318,14 +318,14 @@ fn parse_function(parser: &mut Parser) -> Option<Function> {
         }
     }
 
-    Some(Function {
+    Function {
         name: function_name,
         signature,
         location,
         is_inline,
         ops,
         variables,
-    })
+    }
 }
 
 fn validate_signature(function_name: &str, signature: &Signature) {
