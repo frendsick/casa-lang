@@ -3,8 +3,13 @@ use phf::phf_map;
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use strum_macros::{Display, EnumString};
+
+// A table of identifiers declared at the global scope (e.g., functions)
+pub type IdentifierTable = HashMap<String, Identifier>;
+pub static GLOBAL_IDENTIFIERS: OnceLock<IdentifierTable> = OnceLock::new();
 
 #[derive(Display)]
 pub enum Ansi {
@@ -23,8 +28,6 @@ pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {
     '(' => Delimiter::OpenParen,
     ')' => Delimiter::CloseParen,
 };
-
-pub type IdentifierTable = HashMap<String, Identifier>;
 
 #[derive(Debug)]
 pub enum Identifier {

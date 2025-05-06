@@ -21,12 +21,12 @@ const CODE_FILE: &str = "test.casa";
 fn main() -> io::Result<()> {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let code_file = crate_dir.join(CODE_FILE);
-    let (segments, global_identifiers) = lexer::parse_code_file(&code_file);
+    let segments = lexer::parse_code_file(&code_file);
     dbg!(&segments);
 
-    type_check_program(&segments, &global_identifiers).unwrap();
+    type_check_program(&segments).unwrap();
 
-    let assembly_code = asm::generate_assembly_code(&segments, &global_identifiers);
+    let assembly_code = asm::generate_assembly_code(&segments);
     let assembly_file = crate_dir.join(ASSEMBLY_FILE);
     std::fs::write(&assembly_file, format!("{}\n", assembly_code))?;
     println!("{}", &assembly_code);

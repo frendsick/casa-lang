@@ -1,7 +1,8 @@
 use indexmap::IndexMap;
 
 use crate::common::{
-    Function, Identifier, IdentifierTable, Intrinsic, Location, Op, OpType, ParameterSlice, Segment,
+    Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Location, Op, OpType, ParameterSlice,
+    Segment,
 };
 
 #[derive(Debug)]
@@ -84,23 +85,17 @@ impl TypeStack for Vec<TypeNode> {
     }
 }
 
-pub fn type_check_program(
-    segments: &[Segment],
-    global_identifiers: &IdentifierTable,
-) -> Result<(), TypeCheckError> {
+pub fn type_check_program(segments: &[Segment]) -> Result<(), TypeCheckError> {
     for segment in segments {
         match segment {
-            Segment::Function(f) => type_check_function(f, global_identifiers)?,
+            Segment::Function(f) => type_check_function(f)?,
         }
     }
 
     Ok(())
 }
 
-fn type_check_function(
-    function: &Function,
-    global_identifiers: &IdentifierTable,
-) -> Result<(), TypeCheckError> {
+fn type_check_function(function: &Function) -> Result<(), TypeCheckError> {
     let mut type_stack =
         Vec::from_types(&function.signature.params.get_types(), &function.location);
     let return_stack = Vec::from_types(&function.signature.returns, &function.location);
@@ -116,7 +111,6 @@ fn type_check_function(
         &mut peek_index,
         &function.ops,
         &return_stack,
-        global_identifiers,
         None,
     )?;
 
@@ -126,7 +120,6 @@ fn type_check_function(
         .ok_or(TypeCheckError::InvalidSignature)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn type_check_ops(
     type_stack: &mut Vec<TypeNode>,
     variables: &mut IndexMap<String, String>,
@@ -134,7 +127,6 @@ fn type_check_ops(
     peek_index: &mut usize,
     ops: &[Op],
     return_stack: &[TypeNode],
-    global_identifiers: &IdentifierTable,
     stack_before_branch: Option<&[TypeNode]>,
 ) -> Result<(), TypeCheckError> {
     while let Some(op) = ops.get(*op_index) {
@@ -162,6 +154,7 @@ fn type_check_ops(
                 None => Err(TypeCheckError::SyntaxError)?,
             },
             OpType::FunctionCall | OpType::InlineFunctionCall => {
+                let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
                 match global_identifiers.get(&op.token.value) {
                     Some(Identifier::Function(function)) => {
                         type_check_function_call(type_stack, &op.token.location, function)?;
@@ -199,7 +192,6 @@ fn type_check_ops(
                     peek_index,
                     ops,
                     return_stack,
-                    global_identifiers,
                     Some(&type_stack.clone()),
                 )?;
             }
@@ -211,7 +203,6 @@ fn type_check_ops(
                     peek_index,
                     ops,
                     return_stack,
-                    global_identifiers,
                     Some(&type_stack.clone()),
                 )?;
             }

@@ -1,12 +1,12 @@
 use crate::common::{
-    Function, Identifier, IdentifierTable, Intrinsic, Op, OpType, Segment, get_related_done_id,
+    Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Op, OpType, Segment, get_related_done_id,
     get_related_fi_id, get_related_while_id,
 };
 
-pub fn generate_assembly_code(segments: &[Segment], identifier_table: &IdentifierTable) -> String {
+pub fn generate_assembly_code(segments: &[Segment]) -> String {
     [
         get_asm_bss_section().to_string(),
-        get_asm_text_section(segments, identifier_table),
+        get_asm_text_section(segments),
         get_asm_data_section(segments),
     ]
     .join("\n\n")
@@ -19,7 +19,7 @@ fn get_asm_bss_section() -> &'static str {
     return_stack: .skip 1337*64"
 }
 
-fn get_asm_text_section(segments: &[Segment], identifier_table: &IdentifierTable) -> String {
+fn get_asm_text_section(segments: &[Segment]) -> String {
     let mut asm_blocks = Vec::new();
 
     let header = ".section .text
@@ -28,27 +28,27 @@ fn get_asm_text_section(segments: &[Segment], identifier_table: &IdentifierTable
 
     for segment in segments {
         match segment {
-            Segment::Function(f) => asm_blocks.push(get_asm_for_function(f, identifier_table)),
+            Segment::Function(f) => asm_blocks.push(get_asm_for_function(f)),
         }
     }
 
     asm_blocks.join("\n\n")
 }
 
-fn get_asm_for_function(function: &Function, identifier_table: &IdentifierTable) -> String {
+fn get_asm_for_function(function: &Function) -> String {
     format!(
         "{}:
 {}",
         get_asm_function_label(function),
-        get_asm_for_function_ops(function, identifier_table)
+        get_asm_for_function_ops(function)
     )
 }
 
-fn get_asm_for_function_ops(function: &Function, identifier_table: &IdentifierTable) -> String {
+fn get_asm_for_function_ops(function: &Function) -> String {
     let mut asm_blocks = Vec::new();
     for op in &function.ops {
         asm_blocks.push(get_asm_comment_for_op(op, function));
-        asm_blocks.push(get_asm_code_for_op(op, function, identifier_table));
+        asm_blocks.push(get_asm_code_for_op(op, function));
     }
 
     asm_blocks.join("\n")
@@ -111,7 +111,7 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
     format!("{}_s{}", function.name, op.id)
 }
 
-fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &IdentifierTable) -> String {
+fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
     match &op.ty {
         OpType::Bind => "".to_string(),
         OpType::Break => get_asm_break(op, function),
@@ -130,14 +130,15 @@ fn get_asm_code_for_op(op: &Op, function: &Function, identifier_table: &Identifi
         },
         OpType::If => "".to_string(),
         OpType::InlineFunctionCall => {
-            let called_function = match identifier_table.get(&op.token.value) {
+            let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
+            let called_function = match global_identifiers.get(&op.token.value) {
                 Some(Identifier::Function(f)) => f,
                 None => {
                     eprintln!("Unknown function identifier {}", op.token.value);
                     panic!()
                 }
             };
-            get_asm_for_function_ops(called_function, identifier_table)
+            get_asm_for_function_ops(called_function)
         }
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::Peek => get_asm_peek().to_string(),

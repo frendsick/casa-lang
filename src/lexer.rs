@@ -1,6 +1,7 @@
 use crate::common::{
-    Ansi, Counter, DELIMITERS, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal,
-    Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType,
+    Ansi, Counter, DELIMITERS, Function, GLOBAL_IDENTIFIERS, Identifier, IdentifierTable,
+    Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment, Signature, Token,
+    TokenType,
 };
 use crate::error::{CasaError, colored_error_tag, fatal_error};
 use indexmap::IndexSet;
@@ -119,7 +120,8 @@ impl Parser<'_> {
     }
 }
 
-pub fn parse_code_file(file: &Path) -> (Vec<Segment>, IdentifierTable) {
+pub fn parse_code_file(file: &Path) -> Vec<Segment> {
+    // Read code file
     let code = match fs::read_to_string(file) {
         Ok(code) => code,
         Err(error) => {
@@ -133,28 +135,30 @@ pub fn parse_code_file(file: &Path) -> (Vec<Segment>, IdentifierTable) {
         }
     };
 
+    // Parse the code segments
     let mut parser = Parser::new(&code, file);
-    let mut segments = Vec::new();
-    while let Some(segment) = parse_next_segment(&mut parser) {
-        segments.push(segment);
-    }
+    parse_code_segments(&mut parser)
+}
+
+fn parse_code_segments(parser: &mut Parser) -> Vec<Segment> {
+    // Parse segments from code
+    let mut segments: Vec<_> = std::iter::from_fn(|| parse_next_segment(parser)).collect();
 
     // Make sure the whole code was parsed
     if !parser.is_finished() {
         let error_message = format!(
             "The lexer could not parse the whole file '{}'\n\nUnparsed code:\n\n{}",
-            file.display(),
+            parser.file.display(),
             parser.rest(),
         );
         let location = &parser.get_location();
         fatal_error(location, CasaError::SyntaxError, &error_message);
     }
 
-    // Identifier resolution was not performed during initial parsing
-    let global_identifiers = get_global_identifiers(&segments);
-    resolve_identifiers(&mut segments, &global_identifiers);
+    // Resolve global identifiers
+    resolve_global_identifiers(&mut segments);
 
-    (segments, global_identifiers)
+    segments
 }
 
 fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
@@ -178,11 +182,17 @@ fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
     global_identifiers
 }
 
-fn resolve_identifiers(segments: &mut [Segment], global_identifiers: &IdentifierTable) {
+fn resolve_global_identifiers(segments: &mut [Segment]) {
+    let global_identifiers = get_global_identifiers(segments);
     for segment in segments.iter_mut() {
         let Segment::Function(func) = segment;
-        resolve_identifiers_for_function(func, global_identifiers);
+        resolve_identifiers_for_function(func, &global_identifiers);
     }
+
+    // Store global identifiers for later use
+    GLOBAL_IDENTIFIERS
+        .set(global_identifiers)
+        .expect("Global identifiers are only set here");
 }
 
 fn resolve_identifiers_for_function(function: &mut Function, global_identifiers: &IdentifierTable) {
