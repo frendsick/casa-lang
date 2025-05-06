@@ -11,6 +11,12 @@ use strum_macros::{Display, EnumString};
 pub type IdentifierTable = HashMap<String, Identifier>;
 pub static GLOBAL_IDENTIFIERS: OnceLock<IdentifierTable> = OnceLock::new();
 
+pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {
+    ':' => Delimiter::Colon,
+    '(' => Delimiter::OpenParen,
+    ')' => Delimiter::CloseParen,
+};
+
 #[derive(Display)]
 pub enum Ansi {
     #[strum(to_string = "\x1B[0m")]
@@ -22,12 +28,6 @@ pub enum Ansi {
     #[strum(to_string = "\x1B[94m")]
     Blue,
 }
-
-pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {
-    ':' => Delimiter::Colon,
-    '(' => Delimiter::OpenParen,
-    ')' => Delimiter::CloseParen,
-};
 
 #[derive(Debug)]
 pub enum Identifier {
