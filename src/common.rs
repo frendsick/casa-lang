@@ -275,7 +275,6 @@ pub struct Function {
     pub location: Location,
     pub is_inline: bool,
     pub ops: Vec<Op>,
-    // name, type
     pub variables: IndexSet<String>,
 }
 
