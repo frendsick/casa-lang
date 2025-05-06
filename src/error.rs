@@ -19,7 +19,7 @@ pub fn colored_error_tag(error: CasaError) -> String {
 }
 
 pub fn print_error(location: &Location, error: CasaError, message: &str) {
-    eprintln!("{} {}\n{}", colored_error_tag(error), location, message);
+    eprintln!("{} {}\n\n{}", colored_error_tag(error), location, message);
 }
 
 pub fn fatal_error(location: &Location, error: CasaError, message: &str) -> ! {
