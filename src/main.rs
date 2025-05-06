@@ -1,4 +1,7 @@
 #![feature(if_let_guard)]
+// TODO: Re-enable warnings when the language is more mature
+#![allow(unused_variables)]
+#![allow(dead_code)]
 
 mod asm;
 mod common;
