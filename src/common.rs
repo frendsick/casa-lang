@@ -14,6 +14,8 @@ pub enum Ansi {
     Red,
     #[strum(to_string = "\x1B[33m")]
     Yellow,
+    #[strum(to_string = "\x1B[94m")]
+    Blue,
 }
 
 pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {

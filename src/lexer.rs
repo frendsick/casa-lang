@@ -1,6 +1,5 @@
 use crate::common::{
-    Counter, DELIMITERS, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal,
-    Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType,
+    Ansi, Counter, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType, DELIMITERS
 };
 use crate::error::{CasaError, colored_error_tag, fatal_error};
 use indexmap::IndexSet;
@@ -402,8 +401,11 @@ fn parse_function_params(parser: &mut Parser, function_name: &str) -> Vec<Parame
                 &parser.get_location(),
                 CasaError::SyntaxError,
                 &format!(
-                    "End of file while parsing parameters for '{}' function",
-                    function_name
+                    "End of file while parsing parameters for '{}' function.
+{}Hint{}: Did you forget to close the function signature with '::' token?",
+                    function_name,
+                    Ansi::Blue,
+                    Ansi::Reset,
                 ),
             )
         }
@@ -438,8 +440,11 @@ fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<
                 &parser.get_location(),
                 CasaError::SyntaxError,
                 &format!(
-                    "End of file while parsing return types for '{}' function",
-                    function_name
+                    "End of file while parsing return types for '{}' function.
+{}Hint{}: Did you forget to close the function signature with '::' token?",
+                    function_name,
+                    Ansi::Blue,
+                    Ansi::Reset,
                 ),
             )
         }
