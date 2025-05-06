@@ -235,11 +235,10 @@ fn parse_function(parser: &mut Parser) -> Function {
     parser.skip_whitespace();
 
     // "fun"
-    let location = parser.get_location();
     let fun_token = parse_next_token(parser);
     if fun_token.value != "fun" {
         fatal_error(
-            &location,
+            &fun_token.location,
             CasaError::SyntaxError,
             &format!(
                 "{}: Expected 'fun' but got '{}'",
@@ -321,7 +320,7 @@ fn parse_function(parser: &mut Parser) -> Function {
     Function {
         name: function_name,
         signature,
-        location,
+        location: fun_token.location,
         is_inline,
         ops,
         variables,
