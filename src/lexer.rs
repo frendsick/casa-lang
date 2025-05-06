@@ -402,7 +402,7 @@ fn parse_function_params(parser: &mut Parser, function_name: &str) -> Vec<Parame
                 CasaError::SyntaxError,
                 &format!(
                     "End of file while parsing parameters for '{}' function.
-{}Hint{}: Did you forget to close the function signature with '::' token?",
+{}Hint{}: Did you forget to start the function body with '::' token?",
                     function_name,
                     Ansi::Blue,
                     Ansi::Reset,
@@ -441,7 +441,7 @@ fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<
                 CasaError::SyntaxError,
                 &format!(
                     "End of file while parsing return types for '{}' function.
-{}Hint{}: Did you forget to close the function signature with '::' token?",
+{}Hint{}: Did you forget to start the function body with '::' token?",
                     function_name,
                     Ansi::Blue,
                     Ansi::Reset,
