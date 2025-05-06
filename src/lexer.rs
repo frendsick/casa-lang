@@ -166,6 +166,7 @@ fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
     let keyword = parser.peek_word();
     match keyword {
         "fun" | "inline" => Some(Segment::Function(parse_function(parser))),
+        "" => None,
         _ => fatal_error(
             &parser.get_location(),
             CasaError::SyntaxError,
