@@ -1,43 +1,152 @@
-use indexmap::IndexSet;
-
 use crate::common::{
     Counter, DELIMITERS, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal,
     Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType,
 };
 use crate::error::{CasaError, colored_error_tag, fatal_error};
+use indexmap::IndexSet;
 use std::collections::HashMap;
-use std::path::Path;
+use std::io;
+use std::path::{Path, PathBuf};
 
 static OP_COUNTER: Counter = Counter::new();
 
+struct Parser {
+    pub code: String,
+    pub cursor: usize,
+    pub file: PathBuf,
+}
+
+impl Parser {
+    fn from_file(file: &Path) -> io::Result<Parser> {
+        let code = std::fs::read_to_string(file)?;
+        Ok(Parser {
+            code,
+            cursor: 0,
+            file: file.to_path_buf(),
+        })
+    }
+
+    /// Get unparsed code slice
+    fn rest(&self) -> &str {
+        &self.code[self.cursor..]
+    }
+
+    fn is_finished(&self) -> bool {
+        self.cursor >= self.code.len()
+    }
+
+    fn get_location(&self) -> Location {
+        let mut row = 1;
+        let mut row_start_index = 0;
+
+        for (i, char) in self.code.char_indices() {
+            if i >= self.cursor {
+                break;
+            }
+            if char == '\n' {
+                row += 1;
+                row_start_index = i + char.len_utf8();
+            }
+        }
+
+        let col = self.code[row_start_index..self.cursor].chars().count() + 1;
+
+        Location {
+            file: self.file.to_path_buf(),
+            row,
+            col,
+        }
+    }
+
+    fn skip_whitespace(&mut self) {
+        let start = self.cursor;
+        for (i, char) in self.code[start..].char_indices() {
+            if !char.is_whitespace() {
+                self.cursor = start + i;
+                return;
+            }
+        }
+        self.cursor = self.code.len();
+    }
+
+    /// Peeks what the next parsed word would be.
+    /// Parsing stops on whitespace and delimiter characters.
+    /// Returns an empty string only if the parsing is finished.
+    fn peek_word(&self) -> &str {
+        for (i, char) in self.code[self.cursor..].char_indices() {
+            if char.is_whitespace() || DELIMITERS.get(&char).is_some() {
+                // Parse at least one character
+                let end_offset = if i > 0 { i } else { 1 };
+                return &self.code[self.cursor..self.cursor + end_offset];
+            }
+        }
+        &self.code[self.cursor..]
+    }
+
+    /// Parser the next word.
+    /// Parsing stops on whitespace and delimiter characters.
+    /// Returns an empty string only if the parsing is finished.
+    fn parse_word(&mut self) -> String {
+        let word = self.peek_word().to_string();
+        self.cursor += word.len();
+        word
+    }
+
+    /// Parse the next word if it is what is expected.
+    fn expect_word(&mut self, expected: &str) -> Option<String> {
+        let word = self.peek_word().to_string();
+        if word == *expected {
+            self.cursor += word.len();
+            Some(word)
+        } else {
+            None
+        }
+    }
+
+    fn peek_startswith(&self, expected: &str) -> bool {
+        let rest = self.rest();
+        rest.starts_with(expected)
+    }
+
+    /// Parse over the start of the unparsed code if it is what is expected.
+    /// The `expected` can contain any characters.
+    fn skip_if_startswith(&mut self, expected: &str) -> bool {
+        if self.peek_startswith(expected) {
+            self.cursor += expected.len();
+            true
+        } else {
+            false
+        }
+    }
+}
+
 pub fn parse_code_file(file: &Path) -> (Vec<Segment>, IdentifierTable) {
-    let code = match std::fs::read_to_string(file) {
-        Ok(code) => code,
-        Err(err) => {
+    let mut parser = match Parser::from_file(file) {
+        Ok(parser) => parser,
+        Err(error) => {
             eprintln!(
                 "{} Cannot read file '{}': {}",
                 colored_error_tag(CasaError::FileNotFound),
                 file.display(),
-                err
+                error
             );
             std::process::exit(1);
         }
     };
 
     let mut segments = Vec::new();
-    let mut cursor = 0;
-    while let Some(segment) = parse_next_segment(&code, &mut cursor, file) {
+    while let Some(segment) = parse_next_segment(&mut parser) {
         segments.push(segment);
     }
 
     // Make sure the whole code was parsed
-    if cursor < code.len() {
+    if !parser.is_finished() {
         let error_message = format!(
             "The lexer could not parse the whole file '{}'\n\nUnparsed code:\n\n{}",
             file.display(),
-            &code[cursor..]
+            parser.rest(),
         );
-        let location = &get_location(&code, cursor, file);
+        let location = &parser.get_location();
         fatal_error(location, CasaError::SyntaxError, &error_message);
     }
 
@@ -48,12 +157,11 @@ pub fn parse_code_file(file: &Path) -> (Vec<Segment>, IdentifierTable) {
     (segments, global_identifiers)
 }
 
-fn parse_next_segment(code: &str, cursor: &mut usize, file: &Path) -> Option<Segment> {
-    parse_over_whitespace(code, cursor);
-
-    let keyword = peek_until_whitespace_or_delimiter(code, *cursor);
+fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
+    parser.skip_whitespace();
+    let keyword = parser.peek_word();
     match keyword {
-        "fun" | "inline" => Some(Segment::Function(parse_function(code, cursor, file)?)),
+        "fun" | "inline" => Some(Segment::Function(parse_function(parser)?)),
         _ => None,
     }
 }
@@ -104,17 +212,17 @@ enum Binding {
     Peek,
 }
 
-fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Function> {
+fn parse_function(parser: &mut Parser) -> Option<Function> {
     let mut ops = Vec::new();
     let error_prefix = "Error occurred while parsing a function";
 
     // "inline"
-    let is_inline = parse_over_word(code, cursor, "inline").is_some();
-    parse_over_whitespace(code, cursor);
+    let is_inline = parser.expect_word("inline").is_some();
+    parser.skip_whitespace();
 
     // "fun"
-    let location = get_location(code, *cursor, file);
-    let fun_token = get_next_token(code, cursor, file);
+    let location = parser.get_location();
+    let fun_token = parse_next_token(parser);
     if fun_token.value != "fun" {
         fatal_error(
             &location,
@@ -125,6 +233,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Functio
             ),
         )
     }
+    parser.skip_whitespace();
 
     // Add function prologue if the function is not inline
     if !is_inline {
@@ -132,22 +241,23 @@ fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Functio
         let prologue = Op::new(id, OpType::FunctionPrologue, &fun_token);
         ops.push(prologue);
     }
-    parse_over_whitespace(code, cursor);
 
     // Function name
-    let name = parse_until_whitespace_or_delimiter(code, cursor).to_string();
-    parse_over_whitespace(code, cursor);
+    let function_name = parser.parse_word();
+    parser.skip_whitespace();
 
     // Function signature
-    let signature = parse_function_signature(code, cursor);
-    validate_signature(&name, &signature);
+    let signature = parse_function_signature(parser, &function_name);
+    validate_signature(&function_name, &signature);
+    parser.skip_whitespace();
 
-    if parse_over_word(code, cursor, ":").is_none() {
-        let token = get_next_token(code, cursor, file);
+    // ":"
+    if !parser.skip_if_startswith(":") {
+        let word = parser.peek_word();
         fatal_error(
-            &get_location(code, *cursor, file),
+            &parser.get_location(),
             CasaError::SyntaxError,
-            &format!("{}: Expected ':' but got '{}'", error_prefix, token.value),
+            &format!("{}: Expected '::' but got '{}'", error_prefix, word),
         )
     }
 
@@ -155,13 +265,14 @@ fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Functio
     let mut variables = IndexSet::new();
     let mut binding: Option<Binding> = None;
     loop {
-        let token = get_next_token(code, cursor, file);
+        parser.skip_whitespace();
+        let token = parse_next_token(parser);
         match &token.ty {
             TokenType::Delimiter(_) => {}
             TokenType::EndOfFile => {
                 let error_message = format!(
                     "{}: The '{}' function is missing the 'end' token",
-                    error_prefix, name
+                    error_prefix, function_name
                 );
                 fatal_error(&token.location, CasaError::SyntaxError, &error_message);
             }
@@ -194,7 +305,7 @@ fn parse_function(code: &str, cursor: &mut usize, file: &Path) -> Option<Functio
     }
 
     Some(Function {
-        name,
+        name: function_name,
         signature,
         location,
         is_inline,
@@ -220,27 +331,91 @@ fn validate_signature(function_name: &str, signature: &Signature) {
     }
 }
 
-fn parse_function_signature(code: &str, cursor: &mut usize) -> Signature {
-    let params = parse_function_params(code, cursor);
-    let returns = match parse_over_word(code, cursor, "->") {
-        Some(_) => parse_function_return_types(code, cursor),
+fn parse_token_value(parser: &mut Parser) -> String {
+    let rest = parser.rest();
+    let first = rest.chars().next();
+
+    // Handle tokens recognized by the first character
+    match first {
+        None => return "".to_string(),
+        Some('"') => {
+            if let Some(string_literal) = parse_string_literal(parser) {
+                return string_literal;
+            }
+
+            let location = parser.get_location();
+            let value = parser.parse_word();
+            let error_message = format!("Invalid string literal token: '{}'", value);
+            fatal_error(&location, CasaError::SyntaxError, &error_message);
+        }
+        Some(_) => {} // Token was not recognized by the first character
+    }
+
+    // Handle other tokens
+    parser.parse_word().to_string()
+}
+
+/// Returns None when the parsing is finished
+fn parse_next_token(parser: &mut Parser) -> Token {
+    let location = parser.get_location();
+    let value = parse_token_value(parser);
+    match value.as_ref() {
+        "" => Token::new("", TokenType::EndOfFile, location),
+        v if v.starts_with('"') && v.ends_with('"') => Token::new(
+            v,
+            // Save literal value without the double quotes
+            TokenType::Literal(Literal::String(v[1..v.len() - 1].to_string())),
+            location,
+        ),
+        v if let Ok(integer) = v.parse::<i32>() => {
+            Token::new(v, TokenType::Literal(Literal::Integer(integer)), location)
+        }
+        v if let Ok(intrinsic) = v.parse::<Intrinsic>() => {
+            Token::new(v, TokenType::Intrinsic(intrinsic), location)
+        }
+        v if let Ok(keyword) = v.parse::<Keyword>() => {
+            Token::new(v, TokenType::Keyword(keyword), location)
+        }
+        v => Token::new(v, TokenType::Identifier, location),
+    }
+}
+
+fn parse_function_signature(parser: &mut Parser, function_name: &str) -> Signature {
+    let params = parse_function_params(parser, function_name);
+    let returns = match parser.expect_word("->") {
+        Some(_) => parse_function_return_types(parser, function_name),
         None => Vec::new(),
     };
     Signature { params, returns }
 }
 
-fn parse_function_params(code: &str, cursor: &mut usize) -> Vec<Parameter> {
+fn parse_function_params(parser: &mut Parser, function_name: &str) -> Vec<Parameter> {
     let mut params = Vec::new();
-    parse_over_whitespace(code, cursor);
-    while peek_word(code, *cursor, ":").is_none() && peek_word(code, *cursor, "->").is_none() {
-        let name_or_type = parse_until_whitespace_or_delimiter(code, cursor).to_string();
-        let param = match parse_over_word(code, cursor, ":") {
+    loop {
+        parser.skip_whitespace();
+        if parser.peek_startswith("->") || parser.peek_startswith(":") {
+            break;
+        }
+
+        if parser.is_finished() {
+            fatal_error(
+                &parser.get_location(),
+                CasaError::SyntaxError,
+                &format!(
+                    "End of file while parsing parameters for '{}' function",
+                    function_name
+                ),
+            )
+        }
+
+        let name_or_type = parser.parse_word();
+        let param = match parser.expect_word(":") {
             None => Parameter {
                 name: None,
                 ty: name_or_type,
             },
             Some(_) => {
-                let ty = parse_until_whitespace_or_delimiter(code, cursor);
+                let ty = parser.parse_word();
                 assert!(!ty.is_empty());
                 Parameter {
                     name: Some(name_or_type),
@@ -249,18 +424,29 @@ fn parse_function_params(code: &str, cursor: &mut usize) -> Vec<Parameter> {
             }
         };
         params.push(param);
-        parse_over_whitespace(code, cursor);
     }
     params
 }
 
-fn parse_function_return_types(code: &str, cursor: &mut usize) -> Vec<String> {
+fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<String> {
     let mut return_types = Vec::new();
-    parse_over_whitespace(code, cursor);
-    while peek_word(code, *cursor, ":").is_none() {
-        let return_type = parse_until_whitespace_or_delimiter(code, cursor);
-        return_types.push(return_type.to_string());
-        parse_over_whitespace(code, cursor);
+
+    parser.skip_whitespace();
+    while !parser.peek_startswith(":") {
+        if parser.is_finished() {
+            fatal_error(
+                &parser.get_location(),
+                CasaError::SyntaxError,
+                &format!(
+                    "End of file while parsing return types for '{}' function",
+                    function_name
+                ),
+            )
+        }
+
+        let return_type = parser.parse_word();
+        return_types.push(return_type);
+        parser.skip_whitespace();
     }
     return_types
 }
@@ -310,133 +496,9 @@ fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
     }
 }
 
-fn get_unparsed(code: &str, cursor: usize) -> &str {
-    &code[cursor..]
-}
-
-fn peek_word<'a>(code: &'a str, cursor: usize, word: &'a str) -> Option<&'a str> {
-    let unparsed = get_unparsed(code, cursor);
-    if unparsed.starts_with(word) {
-        Some(word)
-    } else {
-        None
-    }
-}
-
-fn parse_over_word<'a>(code: &'a str, cursor: &'a mut usize, word: &'a str) -> Option<&'a str> {
-    match peek_word(code, *cursor, word) {
-        Some(word) => {
-            *cursor += word.len();
-            Some(word)
-        }
-        None => None,
-    }
-}
-
-fn get_next_token(code: &str, cursor: &mut usize, file: &Path) -> Token {
-    parse_over_whitespace(code, cursor);
-
-    let location = get_location(code, *cursor, file);
-    let unparsed = get_unparsed(code, *cursor);
-    let mut chars = unparsed.chars();
-    let first = chars.next();
-
-    // Handle tokens recognized by the first character
-    match first {
-        Some('"') => {
-            if let Some(token) = parse_string_literal_token(code, cursor, file) {
-                return token;
-            }
-
-            let value = parse_until_whitespace_or_delimiter(code, cursor);
-            let error_message = format!("Invalid string literal token: '{}'", value);
-            fatal_error(&location, CasaError::SyntaxError, &error_message);
-        }
-        Some(c) if let Some(delimiter) = DELIMITERS.get(&c) => {
-            *cursor += 1;
-            return Token::new(
-                &c.to_string(),
-                TokenType::Delimiter(delimiter.clone()),
-                location,
-            );
-        }
-        Some(_) => {}
-        None => return Token::new("", TokenType::EndOfFile, location),
-    }
-
-    // Handle other tokens
-    let value = parse_until_whitespace_or_delimiter(code, cursor);
-    match value {
-        v if let Ok(integer) = v.parse::<i32>() => Token::new(
-            value,
-            TokenType::Literal(Literal::Integer(integer)),
-            location,
-        ),
-        v if let Ok(intrinsic) = v.parse::<Intrinsic>() => {
-            Token::new(value, TokenType::Intrinsic(intrinsic), location)
-        }
-        v if let Ok(keyword) = v.parse::<Keyword>() => {
-            Token::new(value, TokenType::Keyword(keyword), location)
-        }
-        _ => Token::new(value, TokenType::Identifier, location),
-    }
-}
-
-fn get_location(code: &str, cursor: usize, file: &Path) -> Location {
-    let mut row = 1;
-    let mut last_line_start_index = 0;
-
-    for (i, char) in code.char_indices() {
-        if i >= cursor {
-            break;
-        }
-        if char == '\n' {
-            row += 1;
-            last_line_start_index = i + char.len_utf8();
-        }
-    }
-
-    let col = code[last_line_start_index..cursor].chars().count() + 1;
-
-    Location {
-        file: file.to_path_buf(),
-        row,
-        col,
-    }
-}
-
-fn parse_over_whitespace(code: &str, cursor: &mut usize) {
-    let start = *cursor;
-    for (i, char) in code[start..].char_indices() {
-        if !char.is_whitespace() {
-            *cursor = start + i;
-            return;
-        }
-    }
-
-    *cursor = code.len();
-}
-
-fn peek_until_whitespace_or_delimiter(code: &str, cursor: usize) -> &str {
-    for (i, char) in code[cursor..].char_indices() {
-        if char.is_whitespace() || DELIMITERS.get(&char).is_some() {
-            return &code[cursor..cursor + i];
-        }
-    }
-
-    &code[cursor..]
-}
-
-fn parse_until_whitespace_or_delimiter<'a>(code: &'a str, cursor: &'a mut usize) -> &'a str {
-    let parsed = peek_until_whitespace_or_delimiter(code, *cursor);
-    *cursor += parsed.len();
-    parsed
-}
-
-fn parse_string_literal_token(code: &str, cursor: &mut usize, file: &Path) -> Option<Token> {
-    let location = get_location(code, *cursor, file);
-    let unparsed = get_unparsed(code, *cursor);
-    let mut chars = unparsed.char_indices();
+fn parse_string_literal(parser: &mut Parser) -> Option<String> {
+    let rest = parser.rest().to_string();
+    let mut chars = rest.char_indices();
     let (_, first) = chars.next()?;
 
     if first != '"' {
@@ -447,14 +509,8 @@ fn parse_string_literal_token(code: &str, cursor: &mut usize, file: &Path) -> Op
         match char {
             '\n' => return None,
             '"' => {
-                // Save literal value without the double quotes
-                let value = &unparsed[1..index];
-                *cursor += index + 1;
-                return Some(Token::new(
-                    &unparsed[..=index],
-                    TokenType::Literal(Literal::String(value.to_string())),
-                    location,
-                ));
+                parser.cursor += index + 1;
+                return Some(rest[..index + 1].to_string());
             }
             _ => {}
         }
