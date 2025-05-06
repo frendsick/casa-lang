@@ -81,6 +81,7 @@ pub enum Keyword {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
+    Boolean(bool),
     Integer(i32),
     String(String),
 }
@@ -172,6 +173,7 @@ pub enum OpType {
     FunctionPrologue,
     InlineFunctionCall,
     Intrinsic(Intrinsic),
+    PushBool,
     PushInt,
     PushStr,
     Return,

@@ -176,6 +176,7 @@ fn type_check_ops(
             OpType::PushBind => {
                 type_check_push_bind(type_stack, variables, &op.token.location, &op.token.value)?
             }
+            OpType::PushBool => type_stack.push_type("bool", &op.token.location),
             OpType::PushInt => type_stack.push_type("int", &op.token.location),
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
             OpType::Return => matching_stacks(type_stack, return_stack)

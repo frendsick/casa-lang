@@ -144,6 +144,7 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
         OpType::Peek => get_asm_peek().to_string(),
         OpType::PeekBind => get_asm_peek_bind(op, function),
         OpType::PushBind => get_asm_push_bind(op, function),
+        OpType::PushBool => get_asm_push_bool(op),
         OpType::PushInt => get_asm_push_int(op),
         OpType::PushStr => get_asm_push_str(op, function),
         OpType::Return => get_asm_return(function),
@@ -237,6 +238,17 @@ fn get_asm_push_bind(op: &Op, function: &Function) -> String {
     };
 
     format!("pushq -{}(%r14)", variable_index * 8 + 8)
+}
+
+fn get_asm_push_bool(op: &Op) -> String {
+    match op.token.ty {
+        TokenType::Literal(Literal::Boolean(boolean)) => format!(
+            "mov ${}, %rax
+pushq %rax",
+            boolean as u8
+        ),
+        _ => unreachable!("Expected a boolean literal"),
+    }
 }
 
 fn get_asm_push_int(op: &Op) -> String {

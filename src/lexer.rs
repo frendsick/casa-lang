@@ -394,6 +394,9 @@ fn parse_next_token(parser: &mut Parser) -> Token {
             TokenType::Literal(Literal::String(v[1..v.len() - 1].to_string())),
             location,
         ),
+        v if let Ok(boolean) = v.parse::<bool>() => {
+            Token::new(v, TokenType::Literal(Literal::Boolean(boolean)), location)
+        }
         v if let Ok(integer) = v.parse::<i32>() => {
             Token::new(v, TokenType::Literal(Literal::Integer(integer)), location)
         }
@@ -507,6 +510,7 @@ fn get_intrinsic_op(intrinsic: &Intrinsic, token: &Token) -> Op {
 fn get_literal_op(literal: &Literal, token: &Token) -> Op {
     let id = OP_COUNTER.fetch_add();
     match literal {
+        Literal::Boolean(_) => Op::new(id, OpType::PushBool, token),
         Literal::Integer(_) => Op::new(id, OpType::PushInt, token),
         Literal::String(_) => Op::new(id, OpType::PushStr, token),
     }
