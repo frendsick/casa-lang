@@ -1,27 +1,28 @@
 use crate::common::{
-    Ansi, Counter, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType, DELIMITERS
+    Ansi, Counter, DELIMITERS, Function, Identifier, IdentifierTable, Intrinsic, Keyword, Literal,
+    Location, Op, OpType, Parameter, Segment, Signature, Token, TokenType,
 };
 use crate::error::{CasaError, colored_error_tag, fatal_error};
 use indexmap::IndexSet;
 use std::collections::HashMap;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 static OP_COUNTER: Counter = Counter::new();
 
-struct Parser {
+struct Parser<'a> {
     pub code: String,
     pub cursor: usize,
-    pub file: PathBuf,
+    pub file: &'a Path,
 }
 
-impl Parser {
+impl Parser<'_> {
     fn from_file(file: &Path) -> io::Result<Parser> {
         let code = std::fs::read_to_string(file)?;
         Ok(Parser {
             code,
             cursor: 0,
-            file: file.to_path_buf(),
+            file,
         })
     }
 
