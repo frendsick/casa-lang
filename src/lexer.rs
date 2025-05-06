@@ -334,7 +334,7 @@ fn validate_signature(function_name: &str, signature: &Signature) {
         panic!("`main` function should not have parameters");
     }
 
-    match signature.returns.as_slice() {
+    match signature.return_types.as_slice() {
         [] => {}
         [ty] if ty == "int" => {}
         _ => panic!("`main` function should return int or nothing"),
@@ -392,11 +392,14 @@ fn parse_next_token(parser: &mut Parser) -> Token {
 
 fn parse_function_signature(parser: &mut Parser, function_name: &str) -> Signature {
     let params = parse_function_params(parser, function_name);
-    let returns = match parser.expect_word("->") {
+    let return_types = match parser.expect_word("->") {
         Some(_) => parse_function_return_types(parser, function_name),
         None => Vec::new(),
     };
-    Signature { params, returns }
+    Signature {
+        params,
+        return_types,
+    }
 }
 
 fn parse_function_params(parser: &mut Parser, function_name: &str) -> Vec<Parameter> {

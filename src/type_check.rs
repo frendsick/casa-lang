@@ -98,7 +98,7 @@ pub fn type_check_program(segments: &[Segment]) -> Result<(), TypeCheckError> {
 fn type_check_function(function: &Function) -> Result<(), TypeCheckError> {
     let mut type_stack =
         Vec::from_types(&function.signature.params.get_types(), &function.location);
-    let return_stack = Vec::from_types(&function.signature.returns, &function.location);
+    let return_stack = Vec::from_types(&function.signature.return_types, &function.location);
 
     let mut variables = IndexMap::new();
     let mut peek_index = 0;
@@ -270,7 +270,7 @@ fn type_check_function_call(
     for param in &function.signature.params {
         type_stack.pop_type(&param.ty)?;
     }
-    for return_type in &function.signature.returns {
+    for return_type in &function.signature.return_types {
         type_stack.push_type(return_type, location);
     }
     Ok(())

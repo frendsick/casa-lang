@@ -240,7 +240,7 @@ impl ParameterSlice for [Parameter] {
 #[derive(Debug, Clone)]
 pub struct Signature {
     pub params: Vec<Parameter>,
-    pub returns: Vec<String>,
+    pub return_types: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
