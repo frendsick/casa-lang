@@ -259,12 +259,14 @@ impl fmt::Display for Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.params.is_empty() {
             write!(f, "{}", self.params.iter().join(" "))?;
+        } else {
+            write!(f, "()")?;
         }
+
         if !self.return_types.is_empty() {
-            if !self.params.is_empty() {
-                write!(f, " ")?; // Space before '->' if params exist
-            }
-            write!(f, "-> {}", self.return_types.iter().join(" "))?;
+            write!(f, " -> {}", self.return_types.iter().join(" "))?;
+        } else {
+            write!(f, " -> ()")?;
         }
         Ok(())
     }
