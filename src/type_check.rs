@@ -4,6 +4,7 @@ use crate::common::{
 };
 use crate::error::{CasaError, fatal_error};
 use indexmap::IndexMap;
+use std::fmt;
 use strum_macros::Display;
 
 #[derive(Debug, Clone)]
@@ -80,6 +81,17 @@ impl TypeStack for Vec<TypeNode> {
     }
 }
 
+struct TypeNodeSlice<'a>(&'a [TypeNode]);
+
+impl fmt::Display for TypeNodeSlice<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, node) in self.0.iter().enumerate() {
+            write!(f, "[{}] {} ({})", i + 1, node.ty, node.location)?
+        }
+        Ok(())
+    }
+}
+
 pub fn type_check_program(segments: &[Segment]) {
     for segment in segments {
         match segment {
@@ -112,8 +124,10 @@ fn type_check_function(function: &Function) {
 Signature: {}
 
 Stack state at the end of the function:
-{:?}",
-                function.name, function.signature, type_stack,
+{}",
+                function.name,
+                function.signature,
+                TypeNodeSlice(&type_stack),
             ),
         )
     }
