@@ -1,6 +1,8 @@
+use strum_macros::Display;
+
 use crate::common::{
-    Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Op, OpType, Segment, get_related_done_id,
-    get_related_fi_id, get_related_while_id,
+    Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment, TokenType,
+    get_related_done_id, get_related_fi_id, get_related_while_id,
 };
 
 pub fn generate_assembly_code(segments: &[Segment]) -> String {
@@ -208,14 +210,20 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
         Intrinsic::Div => get_asm_div().to_string(),
         Intrinsic::Drop => get_asm_drop().to_string(),
         Intrinsic::Dup => get_asm_dup().to_string(),
-        Intrinsic::Sub => get_asm_sub().to_string(),
+        Intrinsic::Eq => get_asm_comparison(SetOperand::Sete),
+        Intrinsic::Ge => get_asm_comparison(SetOperand::Setge),
+        Intrinsic::Gt => get_asm_comparison(SetOperand::Setg),
+        Intrinsic::Le => get_asm_comparison(SetOperand::Setle),
+        Intrinsic::Lt => get_asm_comparison(SetOperand::Setl),
         Intrinsic::Mod => get_asm_mod().to_string(),
         Intrinsic::Mul => get_asm_mul().to_string(),
+        Intrinsic::Ne => get_asm_comparison(SetOperand::Setne),
         Intrinsic::Or => get_asm_or().to_string(),
         Intrinsic::Over => get_asm_over().to_string(),
         Intrinsic::Rot => get_asm_rot().to_string(),
         Intrinsic::Shl => get_asm_shl().to_string(),
         Intrinsic::Shr => get_asm_shr().to_string(),
+        Intrinsic::Sub => get_asm_sub().to_string(),
         Intrinsic::Swap => get_asm_swap().to_string(),
         Intrinsic::Syscall0 => get_asm_syscall(0),
         Intrinsic::Syscall1 => get_asm_syscall(1),
@@ -385,6 +393,27 @@ addq %rax, (%rsp)"
 fn get_asm_and() -> &'static str {
     "popq %rax
 andq %rax, (%rsp)"
+}
+
+#[derive(Debug, Display)]
+#[strum(serialize_all = "lowercase")]
+enum SetOperand {
+    Sete,
+    Setg,
+    Setge,
+    Setl,
+    Setle,
+    Setne,
+}
+
+fn get_asm_comparison(set_operand: SetOperand) -> String {
+    format!(
+        "popq %rax
+cmpq %rax, (%rsp)
+{set_operand} %al
+movzbq %al, %rax
+movq %rax, (%rsp)"
+    )
 }
 
 fn get_asm_div() -> &'static str {
