@@ -81,11 +81,11 @@ impl TypeStack for Vec<TypeNode> {
     }
 }
 
-struct TypeNodeSlice<'a>(&'a [TypeNode]);
+struct TypeStackSlice<'a>(&'a [TypeNode]);
 
-impl fmt::Display for TypeNodeSlice<'_> {
+impl fmt::Display for TypeStackSlice<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, node) in self.0.iter().enumerate() {
+        for (i, node) in self.0.iter().rev().enumerate() {
             if i > 0 {
                 f.write_str("\n")?;
             }
@@ -130,7 +130,7 @@ Stack state at the end of the function:
 {}",
                 function.name,
                 function.signature,
-                TypeNodeSlice(&type_stack),
+                TypeStackSlice(&type_stack),
             ),
         )
     }
