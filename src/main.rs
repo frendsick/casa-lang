@@ -24,7 +24,7 @@ fn main() -> io::Result<()> {
     let segments = lexer::parse_code_file(&code_file);
     dbg!(&segments);
 
-    type_check_program(&segments).unwrap();
+    type_check_program(&segments);
 
     let assembly_code = asm::generate_assembly_code(&segments);
     let assembly_file = crate_dir.join(ASSEMBLY_FILE);
