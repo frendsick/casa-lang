@@ -520,7 +520,7 @@ fn type_check_load(op: &Op, type_stack: &mut Vec<TypeNode>) {
 }
 
 fn type_check_over(op: &Op, type_stack: &mut Vec<TypeNode>) {
-    let required_values = 3;
+    let required_values = 2;
     if type_stack.len() < required_values {
         fatal_error(
             &op.token.location,
@@ -537,7 +537,7 @@ fn type_check_over(op: &Op, type_stack: &mut Vec<TypeNode>) {
     let t1 = type_stack.pop_stack().unwrap();
     let t2 = type_stack.peek_stack().unwrap().clone();
     type_stack.push_node(&t1);
-    type_stack.push_node(&t2);
+    type_stack.push_type(&t2.ty, &op.token.location);
 }
 
 fn type_check_rot(op: &Op, type_stack: &mut Vec<TypeNode>) {
