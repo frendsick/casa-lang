@@ -1,6 +1,6 @@
 use crate::common::{
-    Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Location, Op, OpType, ParameterSlice,
-    Segment,
+    Ansi, Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Location, Op, OpType,
+    ParameterSlice, Segment,
 };
 use crate::error::{CasaError, fatal_error};
 use indexmap::IndexMap;
@@ -608,10 +608,12 @@ fn type_check_store(op: &Op, type_stack: &mut Vec<TypeNode>) {
             &op.token.location,
             CasaError::ValueError,
             &format!(
-                "Expected 'ptr' but got '{}'.
+                "Expected 'ptr' but got '{}'
 
-The first parameter of '{}' intrinsic should be a pointer to the memory location where a value will be stored.",
+{}Hint{}: The first parameter of '{}' intrinsic should be a pointer to the memory location where a value will be stored",
                 type_stack.peek_stack().unwrap().ty,
+                Ansi::Blue,
+                Ansi::Reset,
                 op.token.value,
             ),
         ),
@@ -663,10 +665,12 @@ fn type_check_syscall(op: &Op, type_stack: &mut Vec<TypeNode>, argc: u8) {
             &op.token.location,
             CasaError::ValueError,
             &format!(
-                "Expected 'int' but got '{}'.
+                "Expected 'int' but got '{}'
 
-The first parameter of '{}' intrinsic represents the syscall number",
+{}Hint{}: The first parameter of '{}' intrinsic represents the syscall number",
                 type_stack.peek_stack().unwrap().ty,
+                Ansi::Blue,
+                Ansi::Reset,
                 op.token.value,
             ),
         ),
