@@ -16,7 +16,7 @@ struct TypeNode {
 #[derive(Debug, Clone)]
 enum PopError {
     EmptyStack,
-    WrongType,
+    WrongType(String),
 }
 
 trait TypeStack {
@@ -52,7 +52,7 @@ impl TypeStack for Vec<TypeNode> {
     fn peek_type(&self, expected_type: &str) -> Result<&TypeNode, PopError> {
         match self.peek_stack() {
             Some(node) if node.ty == expected_type => Ok(node),
-            Some(node) => Err(PopError::WrongType),
+            Some(node) => Err(PopError::WrongType(node.ty.clone())),
             None => Err(PopError::EmptyStack),
         }
     }
@@ -64,7 +64,7 @@ impl TypeStack for Vec<TypeNode> {
     fn pop_type(&mut self, expected_type: &str) -> Result<TypeNode, PopError> {
         match self.pop_stack() {
             Some(node) if node.ty == expected_type => Ok(node),
-            Some(node) => Err(PopError::WrongType),
+            Some(node) => Err(PopError::WrongType(node.ty)),
             None => Err(PopError::EmptyStack),
         }
     }
@@ -271,13 +271,10 @@ fn type_check_do(op: &Op, type_stack: &mut Vec<TypeNode>, branched_stacks: &[Bra
                 op.token.value
             ),
         ),
-        Err(PopError::WrongType) => fatal_error(
+        Err(PopError::WrongType(ty)) => fatal_error(
             &op.token.location,
             CasaError::ValueError,
-            &format!(
-                "Expected 'bool' but got '{}'",
-                type_stack.peek_stack().unwrap().ty
-            ),
+            &format!("Expected 'bool' but got '{}'", ty),
         ),
     }
     type_check_stack_state(op, type_stack, branched_stacks, BranchType::WhileLoop);
@@ -513,13 +510,10 @@ fn type_check_load(op: &Op, type_stack: &mut Vec<TypeNode>) {
                 op.token.value
             ),
         ),
-        Err(PopError::WrongType) => fatal_error(
+        Err(PopError::WrongType(ty)) => fatal_error(
             &op.token.location,
             CasaError::StackUnderflow,
-            &format!(
-                "Expected 'ptr' but got '{}'",
-                type_stack.peek_stack().unwrap().ty
-            ),
+            &format!("Expected 'ptr' but got '{}'", ty),
         ),
     }
     type_stack.push_type("any", &op.token.location);
@@ -607,14 +601,14 @@ fn type_check_store(op: &Op, type_stack: &mut Vec<TypeNode>) {
     match type_stack.pop_type("ptr") {
         Ok(_) => {}
         Err(PopError::EmptyStack) => unreachable!("The stack should have enough values"),
-        Err(PopError::WrongType) => fatal_error(
+        Err(PopError::WrongType(ty)) => fatal_error(
             &op.token.location,
             CasaError::ValueError,
             &format!(
                 "Expected 'ptr' but got '{}'
 
 {}Hint{}: The first parameter of '{}' intrinsic should be a pointer to the memory location where a value will be stored",
-                type_stack.peek_stack().unwrap().ty,
+                ty,
                 Ansi::Blue,
                 Ansi::Reset,
                 op.token.value,
@@ -664,14 +658,14 @@ fn type_check_syscall(op: &Op, type_stack: &mut Vec<TypeNode>, argc: u8) {
     match type_stack.pop_type("int") {
         Ok(_) => {}
         Err(PopError::EmptyStack) => unreachable!("The stack should have enough values"),
-        Err(PopError::WrongType) => fatal_error(
+        Err(PopError::WrongType(ty)) => fatal_error(
             &op.token.location,
             CasaError::ValueError,
             &format!(
                 "Expected 'int' but got '{}'
 
 {}Hint{}: The first parameter of '{}' intrinsic represents the syscall number",
-                type_stack.peek_stack().unwrap().ty,
+                ty,
                 Ansi::Blue,
                 Ansi::Reset,
                 op.token.value,
