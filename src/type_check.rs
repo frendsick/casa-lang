@@ -86,7 +86,10 @@ struct TypeNodeSlice<'a>(&'a [TypeNode]);
 impl fmt::Display for TypeNodeSlice<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, node) in self.0.iter().enumerate() {
-            write!(f, "[{}] {} ({})", i + 1, node.ty, node.location)?
+            if i > 0 {
+                f.write_str("\n")?;
+            }
+            write!(f, "[{}] {} ({})", i + 1, node.ty, node.location)?;
         }
         Ok(())
     }
