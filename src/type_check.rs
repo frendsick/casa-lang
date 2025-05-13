@@ -95,7 +95,7 @@ impl fmt::Display for TypeStackSlice<'_> {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, PartialEq, Eq)]
 enum BranchType {
     IfBlock,
     WhileLoop,
@@ -128,13 +128,18 @@ fn type_check_function(function: &Function) {
             OpType::Do => type_check_do(op, &mut type_stack, &branched_stacks),
             OpType::Done => {
                 type_check_done(op, &type_stack, &branched_stacks);
-                branched_stacks.pop();
+                assert!(branched_stacks.pop().is_some());
+            }
+            OpType::Fi => {
+                type_check_fi(op, &type_stack, &branched_stacks);
+                assert!(branched_stacks.pop().is_some());
             }
             OpType::FunctionCall | OpType::InlineFunctionCall => {
                 type_check_function_call(op, &mut type_stack)
             }
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
+            OpType::If => branched_stacks.push((BranchType::IfBlock, type_stack.clone())),
             OpType::Intrinsic(intrinsic) => type_check_intrinsic(op, &mut type_stack, &intrinsic),
             OpType::Peek => {}
             OpType::PeekBind => {
@@ -147,6 +152,7 @@ fn type_check_function(function: &Function) {
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(op, &mut type_stack, &mut variables),
+            OpType::Then => type_check_then(op, &mut type_stack, &branched_stacks),
             OpType::While => branched_stacks.push((BranchType::WhileLoop, type_stack.clone())),
             // All unknown ops should be resolved before type checking
             OpType::Unknown => {
@@ -195,7 +201,7 @@ fn type_check_stack_state(
     expected_branch_type: BranchType,
 ) {
     match branched_stacks.last() {
-        Some((BranchType::WhileLoop, stack)) => {
+        Some((branch_type, stack)) if *branch_type == expected_branch_type => {
             if !matching_stacks(type_stack, stack) {
                 fatal_error(
                     &op.token.location,
@@ -255,6 +261,10 @@ fn type_check_do(op: &Op, type_stack: &mut Vec<TypeNode>, branched_stacks: &[Bra
 
 fn type_check_done(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedStack]) {
     type_check_stack_state(op, type_stack, branched_stacks, BranchType::WhileLoop);
+}
+
+fn type_check_fi(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedStack]) {
+    type_check_stack_state(op, type_stack, branched_stacks, BranchType::IfBlock);
 }
 
 fn type_check_function_call(op: &Op, type_stack: &mut Vec<TypeNode>) {
@@ -346,6 +356,26 @@ fn type_check_take_bind(
             &format!("Cannot take from empty stack into the variable '{variable_name}'"),
         ),
     };
+}
+
+fn type_check_then(op: &Op, type_stack: &mut Vec<TypeNode>, branched_stacks: &[BranchedStack]) {
+    match type_stack.pop_type("bool") {
+        Ok(_) => {}
+        Err(PopError::EmptyStack) => fatal_error(
+            &op.token.location,
+            CasaError::StackUnderflow,
+            &format!(
+                "The '{}' keyword expects bool but the stack is empty",
+                op.token.value
+            ),
+        ),
+        Err(PopError::WrongType(ty)) => fatal_error(
+            &op.token.location,
+            CasaError::ValueError,
+            &format!("Expected 'bool' but got '{}'", ty),
+        ),
+    }
+    type_check_stack_state(op, type_stack, branched_stacks, BranchType::IfBlock);
 }
 
 fn type_check_intrinsic(op: &Op, type_stack: &mut Vec<TypeNode>, intrinsic: &Intrinsic) {
