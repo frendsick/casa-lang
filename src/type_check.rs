@@ -101,7 +101,11 @@ enum BranchType {
     WhileLoop,
 }
 
-type BranchedStack = (BranchType, Vec<TypeNode>);
+#[derive(Debug)]
+struct BranchedStack {
+    ty: BranchType,
+    type_stack: Vec<TypeNode>,
+}
 
 pub fn type_check_program(segments: &[Segment]) {
     for segment in segments {
@@ -139,7 +143,10 @@ fn type_check_function(function: &Function) {
             }
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
-            OpType::If => branched_stacks.push((BranchType::IfBlock, type_stack.clone())),
+            OpType::If => branched_stacks.push(BranchedStack {
+                ty: BranchType::IfBlock,
+                type_stack: type_stack.clone(),
+            }),
             OpType::Intrinsic(intrinsic) => type_check_intrinsic(op, &mut type_stack, &intrinsic),
             OpType::Peek => {}
             OpType::PeekBind => {
@@ -153,13 +160,15 @@ fn type_check_function(function: &Function) {
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(op, &mut type_stack, &mut variables),
             OpType::Then => type_check_then(op, &mut type_stack, &branched_stacks),
-            OpType::While => branched_stacks.push((BranchType::WhileLoop, type_stack.clone())),
+            OpType::While => branched_stacks.push(BranchedStack {
+                ty: BranchType::WhileLoop,
+                type_stack: type_stack.clone(),
+            }),
             // All unknown ops should be resolved before type checking
             OpType::Unknown => {
                 dbg!(op);
                 todo!()
             }
-            _ => todo!(),
         }
     }
 
@@ -201,8 +210,8 @@ fn type_check_stack_state(
     expected_branch_type: BranchType,
 ) {
     match branched_stacks.last() {
-        Some((branch_type, stack)) if *branch_type == expected_branch_type => {
-            if !matching_stacks(type_stack, stack) {
+        Some(stack) if stack.ty == expected_branch_type => {
+            if !matching_stacks(type_stack, &stack.type_stack) {
                 fatal_error(
                     &op.token.location,
                     CasaError::BranchModifiedStack,
@@ -212,12 +221,12 @@ fn type_check_stack_state(
                 )
             }
         }
-        Some((branch_type, _)) => fatal_error(
+        Some(stack) => fatal_error(
             &op.token.location,
             CasaError::SyntaxError,
             &format!(
                 "The '{}' keyword should be used in {} but got {}",
-                op.token.value, expected_branch_type, branch_type
+                op.token.value, expected_branch_type, stack.ty
             ),
         ),
         None => fatal_error(
