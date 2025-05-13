@@ -147,13 +147,13 @@ fn type_check_function(function: &Function) {
                 ty: BranchType::IfBlock,
                 type_stack: type_stack.clone(),
             }),
-            OpType::Intrinsic(intrinsic) => type_check_intrinsic(op, &mut type_stack, &intrinsic),
+            OpType::Intrinsic(intrinsic) => type_check_intrinsic(op, &mut type_stack, intrinsic),
             OpType::Peek => {}
             OpType::PeekBind => {
                 type_check_peek_bind(op, &mut type_stack, &mut variables, peek_index);
                 peek_index += 1;
             }
-            OpType::PushBind => type_check_push_bind(op, &mut type_stack, &mut variables),
+            OpType::PushBind => type_check_push_bind(op, &mut type_stack, &variables),
             OpType::PushBool => type_stack.push_type("bool", &op.token.location),
             OpType::PushInt => type_stack.push_type("int", &op.token.location),
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
@@ -354,7 +354,7 @@ fn type_check_peek_bind(
 
 fn type_check_return(op: &Op, type_stack: &[TypeNode], function: &Function) {
     let return_stack = Vec::from_types(&function.signature.return_types, &op.token.location);
-    if !matching_stacks(&type_stack, &return_stack) {
+    if !matching_stacks(type_stack, &return_stack) {
         fatal_error(
             &function.location,
             CasaError::InvalidStackState,
@@ -371,7 +371,7 @@ Stack state at the 'return' keyword:
                 Ansi::Blue,
                 Ansi::Reset,
                 function.signature,
-                TypeStackSlice(&type_stack),
+                TypeStackSlice(type_stack),
             ),
         )
     }
