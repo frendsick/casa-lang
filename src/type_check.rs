@@ -155,14 +155,16 @@ fn type_check_function(function: &Function) {
             }
             _ => todo!(),
         }
+    }
 
-        if !branched_stacks.is_empty() {
-            fatal_error(
-                &function.ops.last().unwrap().token.location,
-                CasaError::SyntaxError,
-                "Some branching blocks were not closed",
-            )
-        }
+    // Verify that all branch blocks are closed
+    if !branched_stacks.is_empty() {
+        dbg!(&branched_stacks);
+        fatal_error(
+            &function.ops.last().unwrap().token.location,
+            CasaError::SyntaxError,
+            "Some branching blocks were not closed",
+        )
     }
 
     // Verify that stack matches the function's return types
