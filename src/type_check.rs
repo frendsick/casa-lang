@@ -157,6 +157,7 @@ fn type_check_function(function: &Function) {
             OpType::PushBool => type_stack.push_type("bool", &op.token.location),
             OpType::PushInt => type_stack.push_type("int", &op.token.location),
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
+            OpType::Return => type_check_return(op, &type_stack, function),
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(op, &mut type_stack, &mut variables),
             OpType::Then => type_check_then(op, &mut type_stack, &branched_stacks),
@@ -349,6 +350,31 @@ fn type_check_peek_bind(
             ),
         ),
     };
+}
+
+fn type_check_return(op: &Op, type_stack: &[TypeNode], function: &Function) {
+    let return_stack = Vec::from_types(&function.signature.return_types, &op.token.location);
+    if !matching_stacks(&type_stack, &return_stack) {
+        fatal_error(
+            &function.location,
+            CasaError::InvalidStackState,
+            &format!(
+                "Cannot return from '{}' function with invalid stack state
+
+{}Hint{}: The stack should only contain the types defined by the function signature
+
+Signature: {}
+
+Stack state at the 'return' keyword:
+{}",
+                function.name,
+                Ansi::Blue,
+                Ansi::Reset,
+                function.signature,
+                TypeStackSlice(&type_stack),
+            ),
+        )
+    }
 }
 
 fn type_check_take_bind(
