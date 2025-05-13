@@ -95,6 +95,14 @@ impl fmt::Display for TypeStackSlice<'_> {
     }
 }
 
+#[derive(Debug, Display)]
+enum BranchType {
+    IfBlock,
+    WhileLoop,
+}
+
+type BranchedStack = (BranchType, Vec<TypeNode>);
+
 pub fn type_check_program(segments: &[Segment]) {
     for segment in segments {
         match segment {
@@ -106,17 +114,72 @@ pub fn type_check_program(segments: &[Segment]) {
 fn type_check_function(function: &Function) {
     let mut type_stack =
         Vec::from_types(&function.signature.params.get_types(), &function.location);
-    let return_stack = Vec::from_types(&function.signature.return_types, &function.location);
+    let mut branched_stacks: Vec<BranchedStack> = Vec::new();
     let mut variables = IndexMap::new();
+    let mut peek_index: usize = 0;
 
-    type_check_ops(
-        &mut type_stack,
-        &mut variables,
-        &function.ops,
-        &return_stack,
-    );
+    // Type check ops
+    for op in &function.ops {
+        dbg!(&op);
+        match &op.ty {
+            OpType::Bind => peek_index = 0,
+            OpType::Break => type_check_break(op, &type_stack, &branched_stacks),
+            OpType::Continue => type_check_continue(op, &type_stack, &branched_stacks),
+            OpType::Do => type_check_do(op, &mut type_stack, &branched_stacks),
+            OpType::Done => {
+                type_check_done(op, &type_stack, &branched_stacks);
+                branched_stacks.pop();
+            }
+            OpType::FunctionCall | OpType::InlineFunctionCall => {
+                let function_name = &op.token.value;
+                let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
+                match global_identifiers.get(function_name) {
+                    Some(Identifier::Function(function)) => {
+                        type_check_function_call(op, &mut type_stack, function);
+                    }
+                    _ => fatal_error(
+                        &op.token.location,
+                        CasaError::UnknownIdentifier,
+                        &format!(
+                            "Function '{function_name}' was not found from the global identifiers"
+                        ),
+                    ),
+                }
+            }
+            OpType::FunctionEpilogue => {}
+            OpType::FunctionPrologue => {}
+            OpType::Intrinsic(intrinsic) => type_check_intrinsic(op, &mut type_stack, &intrinsic),
+            OpType::Peek => {}
+            OpType::PeekBind => {
+                type_check_peek_bind(op, &mut type_stack, &mut variables, peek_index);
+                peek_index += 1;
+            }
+            OpType::PushBind => type_check_push_bind(op, &mut type_stack, &mut variables),
+            OpType::PushBool => type_stack.push_type("bool", &op.token.location),
+            OpType::PushInt => type_stack.push_type("int", &op.token.location),
+            OpType::PushStr => type_stack.push_type("str", &op.token.location),
+            OpType::Take => {}
+            OpType::TakeBind => type_check_take_bind(op, &mut type_stack, &mut variables),
+            OpType::While => branched_stacks.push((BranchType::WhileLoop, type_stack.clone())),
+            // All unknown ops should be resolved before type checking
+            OpType::Unknown => {
+                dbg!(op);
+                todo!()
+            }
+            _ => todo!(),
+        }
+
+        if !branched_stacks.is_empty() {
+            fatal_error(
+                &function.ops.last().unwrap().token.location,
+                CasaError::SyntaxError,
+                "Some branching blocks were not closed",
+            )
+        }
+    }
 
     // Verify that stack matches the function's return types
+    let return_stack = Vec::from_types(&function.signature.return_types, &function.location);
     if !matching_stacks(&type_stack, &return_stack) {
         fatal_error(
             &function.location,
@@ -132,85 +195,6 @@ Stack state at the end of the function:
                 function.signature,
                 TypeStackSlice(&type_stack),
             ),
-        )
-    }
-}
-
-#[derive(Debug, Display)]
-enum BranchType {
-    IfBlock,
-    WhileLoop,
-}
-
-type BranchedStack = (BranchType, Vec<TypeNode>);
-
-fn type_check_ops(
-    type_stack: &mut Vec<TypeNode>,
-    variables: &mut IndexMap<String, String>,
-    ops: &[Op],
-    return_stack: &[TypeNode],
-) {
-    let mut branched_stacks: Vec<BranchedStack> = Vec::new();
-    let mut op_index: usize = 0;
-    let mut peek_index: usize = 0;
-
-    while let Some(op) = ops.get(op_index) {
-        dbg!(&op);
-        op_index += 1;
-        match &op.ty {
-            OpType::Bind => peek_index = 0,
-            OpType::Break => type_check_break(op, type_stack, &branched_stacks),
-            OpType::Continue => type_check_continue(op, type_stack, &branched_stacks),
-            OpType::Do => type_check_do(op, type_stack, &branched_stacks),
-            OpType::Done => {
-                type_check_done(op, type_stack, &branched_stacks);
-                branched_stacks.pop();
-            }
-            OpType::FunctionCall | OpType::InlineFunctionCall => {
-                let function_name = &op.token.value;
-                let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
-                match global_identifiers.get(function_name) {
-                    Some(Identifier::Function(function)) => {
-                        type_check_function_call(op, type_stack, function);
-                    }
-                    _ => fatal_error(
-                        &op.token.location,
-                        CasaError::UnknownIdentifier,
-                        &format!(
-                            "Function '{function_name}' was not found from the global identifiers"
-                        ),
-                    ),
-                }
-            }
-            OpType::FunctionEpilogue => {}
-            OpType::FunctionPrologue => {}
-            OpType::Intrinsic(intrinsic) => type_check_intrinsic(op, type_stack, &intrinsic),
-            OpType::Peek => {}
-            OpType::PeekBind => {
-                type_check_peek_bind(op, type_stack, variables, peek_index);
-                peek_index += 1;
-            }
-            OpType::PushBind => type_check_push_bind(op, type_stack, variables),
-            OpType::PushBool => type_stack.push_type("bool", &op.token.location),
-            OpType::PushInt => type_stack.push_type("int", &op.token.location),
-            OpType::PushStr => type_stack.push_type("str", &op.token.location),
-            OpType::Take => {}
-            OpType::TakeBind => type_check_take_bind(op, type_stack, variables),
-            OpType::While => branched_stacks.push((BranchType::WhileLoop, type_stack.clone())),
-            // All unknown ops should be resolved before type checking
-            OpType::Unknown => {
-                dbg!(op);
-                todo!()
-            }
-            _ => todo!(),
-        }
-    }
-
-    if !branched_stacks.is_empty() {
-        fatal_error(
-            &ops.last().unwrap().token.location,
-            CasaError::SyntaxError,
-            "Some branching blocks were not closed",
         )
     }
 }
