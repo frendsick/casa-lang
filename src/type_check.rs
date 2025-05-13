@@ -85,11 +85,15 @@ struct TypeStackSlice<'a>(&'a [TypeNode]);
 
 impl fmt::Display for TypeStackSlice<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, node) in self.0.iter().rev().enumerate() {
-            if i > 0 {
-                f.write_str("\n")?;
+        if self.0.is_empty() {
+            f.write_str("[empty]")?;
+        } else {
+            for (i, node) in self.0.iter().rev().enumerate() {
+                if i > 0 {
+                    f.write_str("\n")?;
+                }
+                write!(f, "[{}] {} ({})", i + 1, node.ty, node.location)?;
             }
-            write!(f, "[{}] {} ({})", i + 1, node.ty, node.location)?;
         }
         Ok(())
     }
