@@ -131,20 +131,7 @@ fn type_check_function(function: &Function) {
                 branched_stacks.pop();
             }
             OpType::FunctionCall | OpType::InlineFunctionCall => {
-                let function_name = &op.token.value;
-                let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
-                match global_identifiers.get(function_name) {
-                    Some(Identifier::Function(function)) => {
-                        type_check_function_call(op, &mut type_stack, function);
-                    }
-                    _ => fatal_error(
-                        &op.token.location,
-                        CasaError::UnknownIdentifier,
-                        &format!(
-                            "Function '{function_name}' was not found from the global identifiers"
-                        ),
-                    ),
-                }
+                type_check_function_call(op, &mut type_stack)
             }
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
@@ -268,7 +255,18 @@ fn type_check_done(op: &Op, type_stack: &[TypeNode], branched_stacks: &[Branched
     type_check_stack_state(op, type_stack, branched_stacks, BranchType::WhileLoop);
 }
 
-fn type_check_function_call(op: &Op, type_stack: &mut Vec<TypeNode>, function: &Function) {
+fn type_check_function_call(op: &Op, type_stack: &mut Vec<TypeNode>) {
+    let function_name = &op.token.value;
+    let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
+    let function = match global_identifiers.get(function_name) {
+        Some(Identifier::Function(function)) => function,
+        _ => fatal_error(
+            &op.token.location,
+            CasaError::UnknownIdentifier,
+            &format!("Function '{function_name}' was not found from the global identifiers"),
+        ),
+    };
+
     if type_stack.len() < function.signature.params.len() {
         fatal_error(
             &op.token.location,
