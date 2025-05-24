@@ -28,6 +28,16 @@ fn get_asm_text_section(segments: &[Segment]) -> String {
 .globl _start";
     asm_blocks.push(header.to_string());
 
+    let entry_function = "_start:
+movq %rsp, (args_ptr)
+leaq return_stack(%rip), %r14
+call main
+popq %rdi
+movq $60, %rax
+syscall
+ret";
+    asm_blocks.push(entry_function.to_string());
+
     for segment in segments {
         match segment {
             Segment::Function(f) => asm_blocks.push(get_asm_for_function(f)),
@@ -41,7 +51,7 @@ fn get_asm_for_function(function: &Function) -> String {
     format!(
         "{}:
 {}",
-        get_asm_function_label(function),
+        function.name,
         get_asm_for_function_ops(function)
     )
 }
@@ -54,14 +64,6 @@ fn get_asm_for_function_ops(function: &Function) -> String {
     }
 
     asm_blocks.join("\n")
-}
-
-fn get_asm_function_label(function: &Function) -> String {
-    if function.name == "main" {
-        "_start".to_string()
-    } else {
-        function.name.clone()
-    }
 }
 
 fn get_asm_data_section(segments: &[Segment]) -> String {
@@ -163,44 +165,28 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
 }
 
 fn get_asm_function_epilogue(function: &Function) -> String {
-    if function.name == "main" {
-        let return_value_to_rdi = match function.signature.return_types.as_slice() {
-            [] => "movq $0, %rdi",              // Return 0
-            [ty] if ty == "int" => "popq %rdi", // Get return value from the stack
-            _ => unreachable!("`main` function should return int or nothing"),
-        };
-        format!(
-            "{}
-movq $60, %rax
-syscall
-ret",
-            return_value_to_rdi
-        )
-    } else {
-        format!(
-            "pushq (%r14)
+    let mut epilogue = String::new();
+
+    // Implicitly return 0 from the `main` function without return types
+    if function.name == "main" && function.signature.return_types.is_empty() {
+        epilogue.push_str("pushq $0\n");
+    }
+
+    epilogue.push_str(&format!(
+        "pushq (%r14)
 subq ${}, %r14
 ret",
-            function.variables.len() * 8 + 8
-        )
-    }
+        function.variables.len() * 8 + 8
+    ));
+    epilogue
 }
 
 fn get_asm_function_prologue(function: &Function) -> String {
-    if function.name == "main" {
-        format!(
-            "movq %rsp, (args_ptr)
-leaq return_stack(%rip), %r14
-addq ${}, %r14",
-            function.variables.len() * 8
-        )
-    } else {
-        format!(
-            "addq ${}, %r14
+    format!(
+        "addq ${}, %r14
 popq (%r14)",
-            function.variables.len() * 8 + 8
-        )
-    }
+        function.variables.len() * 8 + 8
+    )
 }
 
 fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
