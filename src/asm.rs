@@ -1,9 +1,9 @@
-use strum_macros::Display;
-
 use crate::common::{
     Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment, TokenType,
     get_related_done_id, get_related_fi_id, get_related_while_id,
 };
+use std::collections::HashMap;
+use strum_macros::Display;
 
 pub fn generate_assembly_code(segments: &[Segment]) -> String {
     [
@@ -38,29 +38,50 @@ syscall
 ret";
     asm_blocks.push(entry_function.to_string());
 
+    let file_numbers = get_asm_file_numbers(segments);
+    for (file, number) in &file_numbers {
+        let file_directive = format!(".file {} \"{}\"", number, file);
+        asm_blocks.push(file_directive);
+    }
+
     for segment in segments {
         match segment {
-            Segment::Function(f) => asm_blocks.push(get_asm_for_function(f)),
+            Segment::Function(f) => asm_blocks.push(get_asm_for_function(f, &file_numbers)),
         }
     }
 
     asm_blocks.join("\n\n")
 }
 
-fn get_asm_for_function(function: &Function) -> String {
+fn get_asm_file_numbers(segments: &[Segment]) -> HashMap<String, usize> {
+    let mut file_numbers: HashMap<String, usize> = HashMap::new();
+    for segment in segments {
+        match segment {
+            Segment::Function(f) => {
+                let file = f.location.file.to_string_lossy().to_string();
+                if !file_numbers.contains_key(&file) {
+                    file_numbers.insert(file, file_numbers.len());
+                }
+            }
+        }
+    }
+    file_numbers
+}
+
+fn get_asm_for_function(function: &Function, file_numbers: &HashMap<String, usize>) -> String {
     format!(
         "{}:
 {}",
         function.name,
-        get_asm_for_function_ops(function)
+        get_asm_for_function_ops(function, file_numbers)
     )
 }
 
-fn get_asm_for_function_ops(function: &Function) -> String {
+fn get_asm_for_function_ops(function: &Function, file_numbers: &HashMap<String, usize>) -> String {
     let mut asm_blocks = Vec::new();
     for op in &function.ops {
-        asm_blocks.push(get_asm_comment_for_op(op, function));
-        asm_blocks.push(get_asm_code_for_op(op, function));
+        asm_blocks.push(get_asm_location_for_op(op, file_numbers));
+        asm_blocks.push(get_asm_code_for_op(op, function, file_numbers));
     }
 
     asm_blocks.join("\n")
@@ -93,13 +114,11 @@ fn get_asm_data_section_entries_function(function: &Function) -> String {
     asm_blocks.join("\n")
 }
 
-fn get_asm_comment_for_op(op: &Op, function: &Function) -> String {
-    let loc = &op.token.location;
-    let file_name = loc.file.file_name().unwrap();
-    format!(
-        "# [{}] {:?} | File: {:?}, Row: {}, Column: {}",
-        function.name, op.ty, file_name, loc.row, loc.col
-    )
+fn get_asm_location_for_op(op: &Op, file_numbers: &HashMap<String, usize>) -> String {
+    let location = &op.token.location;
+    let file = &op.token.location.file.to_string_lossy().to_string();
+    let file_number = file_numbers.get(file).expect("File number should be set");
+    format!(".loc {} {} {}", file_number, location.row, location.col)
 }
 
 fn generate_asm_string_variable(op: &Op, function: &Function) -> String {
@@ -115,7 +134,11 @@ fn get_asm_string_variable_name(op: &Op, function: &Function) -> String {
     format!("{}_s{}", function.name, op.id)
 }
 
-fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
+fn get_asm_code_for_op(
+    op: &Op,
+    function: &Function,
+    file_numbers: &HashMap<String, usize>,
+) -> String {
     match &op.ty {
         OpType::Bind => "".to_string(),
         OpType::Break => get_asm_break(op, function),
@@ -142,7 +165,7 @@ fn get_asm_code_for_op(op: &Op, function: &Function) -> String {
                     panic!()
                 }
             };
-            get_asm_for_function_ops(called_function)
+            get_asm_for_function_ops(called_function, file_numbers)
         }
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::Peek => get_asm_peek().to_string(),
