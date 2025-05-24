@@ -2,13 +2,21 @@ use crate::common::{
     Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment, TokenType,
     get_related_done_id, get_related_fi_id, get_related_while_id,
 };
+use itertools::Itertools;
 use std::collections::HashMap;
 use strum_macros::Display;
 
 pub fn generate_assembly_code(segments: &[Segment]) -> String {
+    let file_numbers = get_asm_file_numbers(segments);
+    let file_directives: String = file_numbers
+        .iter()
+        .map(|(file, number)| format!(".file {} \"{}\"", number, file))
+        .join("\n");
+
     [
+        file_directives,
         get_asm_bss_section().to_string(),
-        get_asm_text_section(segments),
+        get_asm_text_section(segments, &file_numbers),
         get_asm_data_section(segments),
     ]
     .join("\n\n")
@@ -21,7 +29,7 @@ fn get_asm_bss_section() -> &'static str {
     return_stack: .skip 1337*64"
 }
 
-fn get_asm_text_section(segments: &[Segment]) -> String {
+fn get_asm_text_section(segments: &[Segment], file_numbers: &HashMap<String, usize>) -> String {
     let mut asm_blocks = Vec::new();
 
     let header = ".section .text
@@ -37,12 +45,6 @@ movq $60, %rax
 syscall
 ret";
     asm_blocks.push(entry_function.to_string());
-
-    let file_numbers = get_asm_file_numbers(segments);
-    for (file, number) in &file_numbers {
-        let file_directive = format!(".file {} \"{}\"", number, file);
-        asm_blocks.push(file_directive);
-    }
 
     for segment in segments {
         match segment {
