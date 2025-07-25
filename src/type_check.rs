@@ -108,7 +108,18 @@ enum BranchType {
 #[derive(Debug)]
 struct BranchedStack {
     ty: BranchType,
-    type_stack: Vec<TypeNode>,
+    stack_before: Vec<TypeNode>,
+    stack_after: Vec<TypeNode>,
+}
+
+impl BranchedStack {
+    fn new(ty: BranchType, type_stack: &[TypeNode]) -> Self {
+        Self {
+            ty,
+            stack_before: type_stack.to_vec(),
+            stack_after: type_stack.to_vec(),
+        }
+    }
 }
 
 pub fn type_check_program(segments: &[Segment]) {
@@ -138,6 +149,7 @@ fn type_check_function(function: &Function) {
                 type_check_done(op, &type_stack, &branched_stacks);
                 assert!(branched_stacks.pop().is_some());
             }
+            OpType::Else => type_check_else(op, &mut type_stack, &mut branched_stacks),
             OpType::Fi => {
                 type_check_fi(op, &type_stack, &branched_stacks);
                 assert!(branched_stacks.pop().is_some());
@@ -147,10 +159,9 @@ fn type_check_function(function: &Function) {
             }
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
-            OpType::If => branched_stacks.push(BranchedStack {
-                ty: BranchType::IfBlock,
-                type_stack: type_stack.clone(),
-            }),
+            OpType::If => {
+                branched_stacks.push(BranchedStack::new(BranchType::IfBlock, &type_stack))
+            }
             OpType::Intrinsic(intrinsic) => type_check_intrinsic(op, &mut type_stack, intrinsic),
             OpType::Peek => {}
             OpType::PeekBind => {
@@ -165,10 +176,9 @@ fn type_check_function(function: &Function) {
             OpType::Take => {}
             OpType::TakeBind => type_check_take_bind(op, &mut type_stack, &mut variables),
             OpType::Then => type_check_then(op, &mut type_stack, &branched_stacks),
-            OpType::While => branched_stacks.push(BranchedStack {
-                ty: BranchType::WhileLoop,
-                type_stack: type_stack.clone(),
-            }),
+            OpType::While => {
+                branched_stacks.push(BranchedStack::new(BranchType::WhileLoop, &type_stack))
+            }
             // All unknown ops should be resolved before type checking
             OpType::Unknown => {
                 dbg!(op);
@@ -216,7 +226,7 @@ fn type_check_stack_state(
 ) {
     match branched_stacks.last() {
         Some(stack) if stack.ty == expected_branch_type => {
-            if !matching_stacks(type_stack, &stack.type_stack) {
+            if !matching_stacks(type_stack, &stack.stack_after) {
                 fatal_error(
                     &op.token.location,
                     CasaError::BranchModifiedStack,
@@ -275,6 +285,29 @@ fn type_check_do(op: &Op, type_stack: &mut Vec<TypeNode>, branched_stacks: &[Bra
 
 fn type_check_done(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedStack]) {
     type_check_stack_state(op, type_stack, branched_stacks, BranchType::WhileLoop);
+}
+
+fn type_check_else(
+    op: &Op,
+    type_stack: &mut Vec<TypeNode>,
+    branched_stacks: &mut Vec<BranchedStack>,
+) {
+    let mut original_branched_stack = match branched_stacks.last_mut() {
+        Some(stack) => stack,
+        None => fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            &format!(
+                "The '{}' keyword is used outside of {}",
+                op.token.value,
+                BranchType::IfBlock,
+            ),
+        ),
+    };
+    if !matching_stacks(type_stack, &original_branched_stack.stack_before) {
+        original_branched_stack.stack_after = type_stack.to_vec();
+        *type_stack = original_branched_stack.stack_before.clone();
+    }
 }
 
 fn type_check_fi(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedStack]) {

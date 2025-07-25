@@ -180,6 +180,7 @@ pub enum OpType {
 
     // If block
     If,
+    Else,
     Then,
     Fi,
 
@@ -304,8 +305,25 @@ impl Counter {
     }
 }
 
-pub fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
+pub fn get_related_else_id(op: &Op, function: &Function) -> Option<usize> {
     assert!(op.ty == OpType::Then);
+
+    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
+    let mut nested_ifs = 0;
+
+    for other_op in &function.ops[op_index + 1..] {
+        match other_op.ty {
+            OpType::Else if nested_ifs == 0 => return Some(other_op.id),
+            OpType::Fi => nested_ifs -= 1,
+            OpType::If => nested_ifs += 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+pub fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Else || op.ty == OpType::Then);
 
     let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
     let mut nested_ifs = 0;

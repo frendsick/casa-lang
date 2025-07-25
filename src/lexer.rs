@@ -525,6 +525,7 @@ fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
         Keyword::Continue => Some(Op::new(id, OpType::Continue, token)),
         Keyword::Do => Some(Op::new(id, OpType::Do, token)),
         Keyword::Done => Some(Op::new(id, OpType::Done, token)),
+        Keyword::Else => Some(Op::new(id, OpType::Else, token)),
         Keyword::End => Some(Op::new(id, OpType::FunctionEpilogue, token)),
         Keyword::Fun => Some(Op::new(id, OpType::FunctionPrologue, token)),
         Keyword::Fi => Some(Op::new(id, OpType::Fi, token)),

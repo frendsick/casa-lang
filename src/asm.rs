@@ -1,6 +1,6 @@
 use crate::common::{
     Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment, TokenType,
-    get_related_done_id, get_related_fi_id, get_related_while_id,
+    get_related_done_id, get_related_else_id, get_related_fi_id, get_related_while_id,
 };
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -147,6 +147,7 @@ fn get_asm_code_for_op(
         OpType::Continue => get_asm_continue(op, function),
         OpType::Do => get_asm_do(op, function),
         OpType::Done => get_asm_done(op, function),
+        OpType::Else => get_asm_else(op, function),
         OpType::Fi => get_asm_fi(op, function),
         OpType::FunctionCall => get_asm_function_call(&op.token.value),
         OpType::FunctionEpilogue => match function.is_inline {
@@ -292,16 +293,17 @@ fn get_asm_fi(op: &Op, function: &Function) -> String {
 }
 
 fn get_asm_then(op: &Op, function: &Function) -> String {
-    let related_id = match get_related_fi_id(op, function) {
-        Some(id) => id,
-        None => panic!("Related `fi` was not found"),
-    };
+    let related_else = get_related_else_id(op, function);
+    let related_id = related_else
+        .or_else(|| get_related_fi_id(op, function))
+        .expect("Related `else` or `fi` was not found");
 
+    let label = if related_else.is_some() { "else" } else { "fi" };
     format!(
         "popq %rax
 testq %rax, %rax
-jz {}_fi{}",
-        function.name, related_id
+jz {}_{}{}",
+        function.name, label, related_id
     )
 }
 
@@ -332,6 +334,19 @@ fn get_asm_done(op: &Op, function: &Function) -> String {
     format!(
         "jmp {}_while{}
 {}_done{}:",
+        function.name, related_id, function.name, op.id
+    )
+}
+
+fn get_asm_else(op: &Op, function: &Function) -> String {
+    let related_id = match get_related_fi_id(op, function) {
+        Some(id) => id,
+        None => panic!("Related `fi` was not found"),
+    };
+
+    format!(
+        "jmp {}_fi{}
+{}_else{}:",
         function.name, related_id, function.name, op.id
     )
 }
