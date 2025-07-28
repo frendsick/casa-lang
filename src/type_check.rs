@@ -313,7 +313,7 @@ fn type_check_else(
     type_stack: &mut Vec<TypeNode>,
     branched_stacks: &mut Vec<BranchedStack>,
 ) {
-    let mut original_branched_stack = match branched_stacks.last_mut() {
+    let original_branched_stack = match branched_stacks.last_mut() {
         Some(stack) => stack,
         None => fatal_error(
             &op.token.location,
