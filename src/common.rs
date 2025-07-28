@@ -180,8 +180,9 @@ pub enum OpType {
 
     // If block
     If,
-    Else,
     Then,
+    Elif,
+    Else,
     Fi,
 
     // While block
@@ -305,8 +306,25 @@ impl Counter {
     }
 }
 
+pub fn get_related_elif_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Elif || op.ty == OpType::Then);
+
+    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
+    let mut nested_ifs = 0;
+
+    for other_op in &function.ops[op_index + 1..] {
+        match other_op.ty {
+            OpType::Elif if nested_ifs == 0 => return Some(other_op.id),
+            OpType::Fi => nested_ifs -= 1,
+            OpType::If => nested_ifs += 1,
+            _ => {}
+        }
+    }
+    None
+}
+
 pub fn get_related_else_id(op: &Op, function: &Function) -> Option<usize> {
-    assert!(op.ty == OpType::Then);
+    assert!(op.ty == OpType::Elif || op.ty == OpType::Then);
 
     let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
     let mut nested_ifs = 0;

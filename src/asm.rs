@@ -1,6 +1,7 @@
 use crate::common::{
     Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment, TokenType,
-    get_related_done_id, get_related_else_id, get_related_fi_id, get_related_while_id,
+    get_related_done_id, get_related_elif_id, get_related_else_id, get_related_fi_id,
+    get_related_while_id,
 };
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -147,6 +148,7 @@ fn get_asm_code_for_op(
         OpType::Continue => get_asm_continue(op, function),
         OpType::Do => get_asm_do(op, function),
         OpType::Done => get_asm_done(op, function),
+        OpType::Elif => get_asm_elif(op, function),
         OpType::Else => get_asm_else(op, function),
         OpType::Fi => get_asm_fi(op, function),
         OpType::FunctionCall => get_asm_function_call(&op.token.value),
@@ -293,12 +295,20 @@ fn get_asm_fi(op: &Op, function: &Function) -> String {
 }
 
 fn get_asm_then(op: &Op, function: &Function) -> String {
+    let related_elif = get_related_elif_id(op, function);
     let related_else = get_related_else_id(op, function);
-    let related_id = related_else
+    let related_id = related_elif
+        .or(related_else)
         .or_else(|| get_related_fi_id(op, function))
-        .expect("Related `else` or `fi` was not found");
+        .expect("Related `elif`, `else` or `fi` was not found");
 
-    let label = if related_else.is_some() { "else" } else { "fi" };
+    let label = if related_elif.is_some() {
+        "elif"
+    } else if related_else.is_some() {
+        "else"
+    } else {
+        "fi"
+    };
     format!(
         "popq %rax
 testq %rax, %rax
@@ -335,6 +345,28 @@ fn get_asm_done(op: &Op, function: &Function) -> String {
         "jmp {}_while{}
 {}_done{}:",
         function.name, related_id, function.name, op.id
+    )
+}
+
+fn get_asm_elif(op: &Op, function: &Function) -> String {
+    let related_elif = get_related_elif_id(op, function);
+    let related_else = get_related_else_id(op, function);
+    let related_id = related_elif
+        .or(related_else)
+        .or_else(|| get_related_fi_id(op, function))
+        .expect("Related `elif`, `else` or `fi` was not found");
+
+    let label = if related_elif.is_some() {
+        "elif"
+    } else if related_else.is_some() {
+        "else"
+    } else {
+        "fi"
+    };
+    format!(
+        "jmp {}_{}{}
+{}_elif{}:",
+        function.name, label, related_id, function.name, op.id,
     )
 }
 

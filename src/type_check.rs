@@ -149,6 +149,7 @@ fn type_check_function(function: &Function) {
                 type_check_done(op, &type_stack, &branched_stacks);
                 assert!(branched_stacks.pop().is_some());
             }
+            OpType::Elif => type_check_elif(op, &mut type_stack, &mut branched_stacks),
             OpType::Else => type_check_else(op, &mut type_stack, &mut branched_stacks),
             OpType::Fi => {
                 type_check_fi(op, &type_stack, &branched_stacks);
@@ -285,6 +286,26 @@ fn type_check_do(op: &Op, type_stack: &mut Vec<TypeNode>, branched_stacks: &[Bra
 
 fn type_check_done(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedStack]) {
     type_check_stack_state(op, type_stack, branched_stacks, BranchType::WhileLoop);
+}
+
+fn type_check_elif(
+    op: &Op,
+    type_stack: &mut Vec<TypeNode>,
+    branched_stacks: &mut Vec<BranchedStack>,
+) {
+    let original_branched_stack = match branched_stacks.last_mut() {
+        Some(stack) => stack,
+        None => fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            &format!(
+                "The '{}' keyword is used outside of {}",
+                op.token.value,
+                BranchType::IfBlock,
+            ),
+        ),
+    };
+    *type_stack = original_branched_stack.stack_before.clone();
 }
 
 fn type_check_else(
