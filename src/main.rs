@@ -20,9 +20,6 @@ use crate::cli::CasaCli;
 use crate::compile::compile_assembly_code;
 use crate::type_check::type_check_program;
 
-const ASSEMBLY_FILE: &str = "test.asm";
-const CODE_FILE: &str = "test.casa";
-
 fn main() -> io::Result<()> {
     let cli = CasaCli::parse();
     let args = cli::parse_args(&cli);
@@ -33,7 +30,7 @@ fn main() -> io::Result<()> {
     type_check_program(&segments);
 
     let assembly_code = asm::generate_assembly_code(&segments);
-    let executable = compile_assembly_code(&assembly_code, &input_path)?;
+    let executable = compile_assembly_code(&assembly_code, &input_path, args.artifact_dir)?;
 
     // Run the generated executable
     if let CasaCli::Run(_) = cli {

@@ -17,6 +17,10 @@ pub enum CasaCli {
 pub struct CasaArgs {
     /// Input file path
     pub input: String,
+
+    /// Leave compiler artifacts to this directory
+    #[arg(long, value_name = "DIR")]
+    pub artifact_dir: Option<PathBuf>,
 }
 
 pub fn parse_args(cli: &CasaCli) -> CasaArgs {
