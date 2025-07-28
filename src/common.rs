@@ -306,55 +306,34 @@ impl Counter {
     }
 }
 
-pub fn get_related_elif_id(op: &Op, function: &Function) -> Option<usize> {
-    assert!(op.ty == OpType::Elif || op.ty == OpType::Then);
-
+fn find_op_index_from_nested_ifs(op: &Op, function: &Function, op_type: OpType) -> Option<usize> {
     let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
     let mut nested_ifs = 0;
 
     for other_op in &function.ops[op_index + 1..] {
-        match other_op.ty {
-            OpType::Elif if nested_ifs == 0 => return Some(other_op.id),
+        match &other_op.ty {
+            ty if *ty == op_type && nested_ifs == 0 => return Some(other_op.id),
             OpType::Fi => nested_ifs -= 1,
             OpType::If => nested_ifs += 1,
             _ => {}
         }
     }
     None
+}
+
+pub fn get_related_elif_id(op: &Op, function: &Function) -> Option<usize> {
+    assert!(op.ty == OpType::Elif || op.ty == OpType::Then);
+    find_op_index_from_nested_ifs(op, function, OpType::Elif)
 }
 
 pub fn get_related_else_id(op: &Op, function: &Function) -> Option<usize> {
     assert!(op.ty == OpType::Elif || op.ty == OpType::Then);
-
-    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
-    let mut nested_ifs = 0;
-
-    for other_op in &function.ops[op_index + 1..] {
-        match other_op.ty {
-            OpType::Else if nested_ifs == 0 => return Some(other_op.id),
-            OpType::Fi => nested_ifs -= 1,
-            OpType::If => nested_ifs += 1,
-            _ => {}
-        }
-    }
-    None
+    find_op_index_from_nested_ifs(op, function, OpType::Else)
 }
 
 pub fn get_related_fi_id(op: &Op, function: &Function) -> Option<usize> {
-    assert!(op.ty == OpType::Else || op.ty == OpType::Then);
-
-    let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
-    let mut nested_ifs = 0;
-
-    for other_op in &function.ops[op_index + 1..] {
-        match other_op.ty {
-            OpType::Fi if nested_ifs == 0 => return Some(other_op.id),
-            OpType::Fi => nested_ifs -= 1,
-            OpType::If => nested_ifs += 1,
-            _ => {}
-        }
-    }
-    None
+    assert!(op.ty == OpType::Elif || op.ty == OpType::Else || op.ty == OpType::Then);
+    find_op_index_from_nested_ifs(op, function, OpType::Fi)
 }
 
 pub fn get_related_done_id(op: &Op, function: &Function) -> Option<usize> {
