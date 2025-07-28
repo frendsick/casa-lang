@@ -1,7 +1,10 @@
-use crate::common::{
-    Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment, TokenType,
-    get_related_done_id, get_related_elif_id, get_related_else_id, get_related_fi_id,
-    get_related_while_id,
+use crate::{
+    common::{
+        Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment,
+        TokenType, get_related_done_id, get_related_elif_id, get_related_else_id,
+        get_related_fi_id, get_related_while_id,
+    },
+    error::{CasaError, fatal_error},
 };
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -295,20 +298,20 @@ fn get_asm_fi(op: &Op, function: &Function) -> String {
 }
 
 fn get_asm_then(op: &Op, function: &Function) -> String {
-    let related_elif = get_related_elif_id(op, function);
-    let related_else = get_related_else_id(op, function);
-    let related_id = related_elif
-        .or(related_else)
-        .or_else(|| get_related_fi_id(op, function))
-        .expect("Related `elif`, `else` or `fi` was not found");
-
-    let label = if related_elif.is_some() {
-        "elif"
-    } else if related_else.is_some() {
-        "else"
+    let (label, related_id) = if let Some(id) = get_related_elif_id(op, function) {
+        ("elif", id)
+    } else if let Some(id) = get_related_else_id(op, function) {
+        ("else", id)
+    } else if let Some(id) = get_related_fi_id(op, function) {
+        ("fi", id)
     } else {
-        "fi"
+        fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            "Related `elif`, `else` or `fi` was not found",
+        )
     };
+
     format!(
         "popq %rax
 testq %rax, %rax
@@ -324,7 +327,11 @@ fn get_asm_while(op: &Op, function: &Function) -> String {
 fn get_asm_do(op: &Op, function: &Function) -> String {
     let related_id = match get_related_done_id(op, function) {
         Some(id) => id,
-        None => panic!("Related `done` was not found"),
+        None => fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            "Related `done` was not found",
+        ),
     };
 
     format!(
@@ -338,7 +345,11 @@ jz {}_done{}",
 fn get_asm_done(op: &Op, function: &Function) -> String {
     let related_id = match get_related_while_id(op, function) {
         Some(id) => id,
-        None => panic!("Related `while` was not found"),
+        None => fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            "Related `while` was not found",
+        ),
     };
 
     format!(
@@ -349,20 +360,20 @@ fn get_asm_done(op: &Op, function: &Function) -> String {
 }
 
 fn get_asm_elif(op: &Op, function: &Function) -> String {
-    let related_elif = get_related_elif_id(op, function);
-    let related_else = get_related_else_id(op, function);
-    let related_id = related_elif
-        .or(related_else)
-        .or_else(|| get_related_fi_id(op, function))
-        .expect("Related `elif`, `else` or `fi` was not found");
-
-    let label = if related_elif.is_some() {
-        "elif"
-    } else if related_else.is_some() {
-        "else"
+    let (label, related_id) = if let Some(id) = get_related_elif_id(op, function) {
+        ("elif", id)
+    } else if let Some(id) = get_related_else_id(op, function) {
+        ("else", id)
+    } else if let Some(id) = get_related_fi_id(op, function) {
+        ("fi", id)
     } else {
-        "fi"
+        fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            "Related `elif`, `else` or `fi` was not found",
+        )
     };
+
     format!(
         "jmp {}_{}{}
 {}_elif{}:",
@@ -373,7 +384,11 @@ fn get_asm_elif(op: &Op, function: &Function) -> String {
 fn get_asm_else(op: &Op, function: &Function) -> String {
     let related_id = match get_related_fi_id(op, function) {
         Some(id) => id,
-        None => panic!("Related `fi` was not found"),
+        None => fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            "Related `fi` was not found",
+        ),
     };
 
     format!(
@@ -386,7 +401,11 @@ fn get_asm_else(op: &Op, function: &Function) -> String {
 fn get_asm_break(op: &Op, function: &Function) -> String {
     let related_id = match get_related_done_id(op, function) {
         Some(id) => id,
-        None => panic!("Related `done` was not found"),
+        None => fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            "Related `done` was not found",
+        ),
     };
 
     format!("jmp {}_done{}", function.name, related_id)
@@ -395,7 +414,11 @@ fn get_asm_break(op: &Op, function: &Function) -> String {
 fn get_asm_continue(op: &Op, function: &Function) -> String {
     let related_id = match get_related_while_id(op, function) {
         Some(id) => id,
-        None => panic!("Related `while` was not found"),
+        None => fatal_error(
+            &op.token.location,
+            CasaError::SyntaxError,
+            "Related `while` was not found",
+        ),
     };
 
     format!("jmp {}_while{}", function.name, related_id)
