@@ -1,27 +1,34 @@
+use std::fs::remove_file;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub fn compile_assembly_code(asm_path: &Path) -> io::Result<()> {
+pub fn compile_assembly_code(assembly_code: &str, input_file: &Path) -> io::Result<PathBuf> {
+    let stem = input_file.file_stem().unwrap();
+    let parent_dir = input_file.parent().unwrap();
+    let assembly_path = PathBuf::from(format!("{}/{}.asm", parent_dir.display(), stem.display()));
+    std::fs::write(&assembly_path, format!("{}\n", assembly_code))?;
+
     // Derive paths from assembly file
-    let stem = asm_path
-        .file_stem()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid assembly file name"))?;
-    let obj_path = PathBuf::from(format!("{}.o", stem.to_string_lossy()));
-    let exe_path = PathBuf::from(format!("{}", stem.to_string_lossy()));
+    let object_path = PathBuf::from(format!("{}/{}.o", parent_dir.display(), stem.display()));
+    let executable_path = PathBuf::from(format!("{}/{}", parent_dir.display(), stem.display()));
 
     // Compile and link
-    compile_with_as(asm_path, &obj_path)?;
-    link_with_ld(&obj_path, &exe_path)?;
+    compile_with_as(&assembly_path, &object_path)?;
+    link_with_ld(&object_path, &executable_path)?;
 
-    Ok(())
+    // Remove compiler artifacts
+    let _ = remove_file(&assembly_path);
+    let _ = remove_file(&object_path);
+
+    Ok(executable_path)
 }
 
-fn compile_with_as(asm_path: &Path, obj_path: &Path) -> io::Result<()> {
+fn compile_with_as(assembly_path: &Path, object_path: &Path) -> io::Result<()> {
     let status = Command::new("as")
         .args(["-g", "-o"])
-        .arg(obj_path)
-        .arg(asm_path)
+        .arg(object_path)
+        .arg(assembly_path)
         .status()?;
 
     if !status.success() {
@@ -31,11 +38,11 @@ fn compile_with_as(asm_path: &Path, obj_path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn link_with_ld(obj_path: &Path, exe_path: &Path) -> io::Result<()> {
+fn link_with_ld(object_path: &Path, executable_path: &Path) -> io::Result<()> {
     let status = Command::new("ld")
         .args(["-melf_x86_64", "-o"])
-        .arg(exe_path)
-        .arg(obj_path)
+        .arg(executable_path)
+        .arg(object_path)
         .status()?;
 
     if !status.success() {
