@@ -14,28 +14,39 @@ mod type_check;
 
 use clap::Parser;
 use std::io;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::cli::CasaCli;
 use crate::compile::compile_assembly_code;
+use crate::error::{CasaError, fatal_error_short};
 use crate::type_check::type_check_program;
 
 fn main() -> io::Result<()> {
     let cli = CasaCli::parse();
     let args = cli::parse_args(&cli);
-    let input_path = cli::parse_input_path(&args);
+    let input_path = canonicalize_path(&args.input);
 
     let segments = lexer::parse_code_file(&input_path);
 
     type_check_program(&segments);
 
     let assembly_code = asm::generate_assembly_code(&segments);
-    let executable = compile_assembly_code(&assembly_code, &input_path, args.artifact_dir)?;
+    let executable = compile_assembly_code(&assembly_code, &input_path, &args)?;
 
-    // Run the generated executable
-    if let CasaCli::Run(_) = cli {
+    if matches!(cli, CasaCli::Run(_)) {
         Command::new(executable).status()?;
     }
 
     Ok(())
+}
+
+fn canonicalize_path(path: &Path) -> PathBuf {
+    match path.canonicalize() {
+        Ok(path) => path,
+        Err(error) => fatal_error_short(
+            CasaError::FileNotFound,
+            &format!("Cannot read file '{}': {}", path.display(), error),
+        ),
+    }
 }
