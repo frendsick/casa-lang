@@ -139,7 +139,6 @@ fn type_check_function(function: &Function) {
 
     // Type check ops
     for op in &function.ops {
-        dbg!(&op);
         match &op.ty {
             OpType::Bind => peek_index = 0,
             OpType::Break => type_check_break(op, &type_stack, &branched_stacks),
