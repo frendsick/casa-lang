@@ -28,9 +28,9 @@ pub fn generate_assembly_code(segments: &[Segment]) -> String {
 
 fn get_asm_bss_section() -> &'static str {
     ".section .bss
-    args_ptr: .skip 8
-    arena_allocator: .skip 8*3
-    return_stack: .skip 1337*64"
+args_ptr: .skip 8
+arena_allocator: .skip 8*3
+return_stack: .skip 1337*64"
 }
 
 fn get_asm_text_section(segments: &[Segment], file_numbers: &HashMap<String, usize>) -> String {
