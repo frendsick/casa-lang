@@ -126,6 +126,7 @@ pub fn type_check_program(segments: &[Segment]) {
     for segment in segments {
         match segment {
             Segment::Function(f) => type_check_function(f),
+            Segment::Include(_) => {}
         }
     }
 }

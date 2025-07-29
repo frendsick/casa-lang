@@ -53,6 +53,7 @@ ret";
     for segment in segments {
         match segment {
             Segment::Function(f) => asm_blocks.push(get_asm_for_function(f, &file_numbers)),
+            Segment::Include(_) => {}
         }
     }
 
@@ -69,6 +70,7 @@ fn get_asm_file_numbers(segments: &[Segment]) -> HashMap<String, usize> {
                     file_numbers.insert(file, file_numbers.len());
                 }
             }
+            Segment::Include(_) => {}
         }
     }
     file_numbers
@@ -103,6 +105,7 @@ fn get_asm_data_section(segments: &[Segment]) -> String {
             Segment::Function(function) => {
                 asm_blocks.push(get_asm_data_section_entries_function(function))
             }
+            Segment::Include(_) => {}
         }
     }
 

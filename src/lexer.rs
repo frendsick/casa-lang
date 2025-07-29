@@ -1,3 +1,4 @@
+use crate::canonicalize_path_must_exist;
 use crate::common::{
     Ansi, Counter, DELIMITERS, Function, GLOBAL_IDENTIFIERS, Identifier, IdentifierTable,
     Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment, Signature, Token,
@@ -5,9 +6,9 @@ use crate::common::{
 };
 use crate::error::{CasaError, fatal_error, fatal_error_short};
 use indexmap::IndexSet;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 static OP_COUNTER: Counter = Counter::new();
 
@@ -69,6 +70,17 @@ impl Parser<'_> {
         self.cursor = self.code.len();
     }
 
+    fn skip_line(&mut self) {
+        let start = self.cursor;
+        for (i, char) in self.code[start..].char_indices() {
+            if char == '\n' {
+                self.cursor = start + i + 1;
+                return;
+            }
+        }
+        self.cursor = self.code.len();
+    }
+
     /// Peeks what the next parsed word would be.
     /// Parsing stops on whitespace and delimiter characters.
     /// Returns an empty string only if the parsing is finished.
@@ -120,24 +132,107 @@ impl Parser<'_> {
     }
 }
 
-pub fn parse_code_file(file: &Path) -> Vec<Segment> {
-    // Read code file
-    let code = match fs::read_to_string(file) {
+fn parse_included_files(file: &Path) -> HashSet<PathBuf> {
+    // Parse included files recursively
+    let mut included_files = HashSet::new();
+    do_parse_included_files(file, &mut included_files);
+
+    fn do_parse_included_files(file: &Path, included_files: &mut HashSet<PathBuf>) {
+        if !included_files.insert(file.to_path_buf()) {
+            return;
+        }
+
+        let code = read_file(&file);
+        let mut parser = Parser::new(&code, &file);
+
+        // Example: `#include "lib/std.casa"`
+        while !parser.is_finished() {
+            parser.skip_whitespace();
+
+            if parser.expect_word("#include").is_none() {
+                parser.skip_line();
+                continue;
+            }
+            parser.skip_whitespace();
+
+            if let Some(include_path) = parse_include_path_as_absolute(&mut parser) {
+                // Parse included files recursively
+                do_parse_included_files(&include_path, included_files);
+            } else {
+                let word = parser.peek_word();
+                let location = parser.get_location();
+                let error_message = format!(
+                    "Invalid string literal token for #include directive: '{}'
+
+#include directive expects file path as string literal
+Example: `#include \"lib/std.casa\"`",
+                    word
+                );
+                fatal_error(&location, CasaError::SyntaxError, &error_message)
+            }
+        }
+    }
+
+    included_files
+}
+
+fn parse_include_path_as_absolute(parser: &mut Parser) -> Option<PathBuf> {
+    let string_literal = parse_string_literal(parser)?;
+    let include_file = unquote(&string_literal)?;
+    let path = Path::new(include_file);
+    let canonicalized_path = if path.is_absolute() {
+        canonicalize_path_must_exist(path)
+    } else {
+        let parent = parser.file.parent().unwrap();
+        let abs_path = PathBuf::from(format!("{}/{}", parent.display(), include_file));
+        canonicalize_path_must_exist(&abs_path)
+    };
+    Some(canonicalized_path)
+}
+
+pub fn parse_segments_from_included_files(file: &Path) -> Vec<Segment> {
+    let included_files = parse_included_files(file);
+
+    // Parse segments
+    let mut segments: Vec<Segment> = Vec::new();
+    for file in included_files {
+        let code = read_file(&file);
+        let mut code_segments = parse_segments_from_code(&code, &file);
+        segments.append(&mut code_segments);
+    }
+
+    // Resolve global identifiers
+    resolve_global_identifiers(&mut segments);
+
+    segments
+}
+
+fn parse_segments_from_code(code: &str, file: &Path) -> Vec<Segment> {
+    let mut parser = Parser::new(&code, file);
+    parse_code_segments(&mut parser)
+}
+
+fn unquote(string: &str) -> Option<&str> {
+    if string.len() >= 2 && string.starts_with('"') && string.ends_with('"') {
+        Some(&string[1..string.len() - 1])
+    } else {
+        None
+    }
+}
+
+fn read_file(file: &Path) -> String {
+    match fs::read_to_string(file) {
         Ok(code) => code,
         Err(error) => fatal_error_short(
             CasaError::FileNotFound,
             &format!("Cannot read file '{}': {}", file.display(), error),
         ),
-    };
-
-    // Parse the code segments
-    let mut parser = Parser::new(&code, file);
-    parse_code_segments(&mut parser)
+    }
 }
 
 fn parse_code_segments(parser: &mut Parser) -> Vec<Segment> {
     // Parse segments from code
-    let mut segments: Vec<_> = std::iter::from_fn(|| parse_next_segment(parser)).collect();
+    let segments: Vec<_> = std::iter::from_fn(|| parse_next_segment(parser)).collect();
 
     // Make sure the whole code was parsed
     if !parser.is_finished() {
@@ -150,9 +245,6 @@ fn parse_code_segments(parser: &mut Parser) -> Vec<Segment> {
         fatal_error(location, CasaError::SyntaxError, &error_message);
     }
 
-    // Resolve global identifiers
-    resolve_global_identifiers(&mut segments);
-
     segments
 }
 
@@ -161,6 +253,7 @@ fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
     let keyword = parser.peek_word();
     match keyword {
         "fun" | "inline" => Some(Segment::Function(parse_function(parser))),
+        "#include" => parse_include_segment(parser),
         "" => None,
         _ => fatal_error(
             &parser.get_location(),
@@ -170,6 +263,13 @@ fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
     }
 }
 
+fn parse_include_segment(parser: &mut Parser) -> Option<Segment> {
+    parser.expect_word("#include")?;
+    parser.skip_whitespace();
+    let include_path = parse_include_path_as_absolute(parser)?;
+    Some(Segment::Include(include_path))
+}
+
 fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
     let mut global_identifiers: IdentifierTable = HashMap::new();
     for segment in segments {
@@ -177,6 +277,7 @@ fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
             Segment::Function(f) => {
                 global_identifiers.insert(f.name.clone(), Identifier::Function(f.clone()));
             }
+            Segment::Include(_) => {}
         }
     }
     global_identifiers
@@ -185,8 +286,9 @@ fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
 fn resolve_global_identifiers(segments: &mut [Segment]) {
     let global_identifiers = get_global_identifiers(segments);
     for segment in segments.iter_mut() {
-        let Segment::Function(func) = segment;
-        resolve_identifiers_for_function(func, &global_identifiers);
+        if let Segment::Function(func) = segment {
+            resolve_identifiers_for_function(func, &global_identifiers);
+        }
     }
 
     // Store global identifiers for later use

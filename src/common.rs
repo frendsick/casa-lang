@@ -289,6 +289,7 @@ pub struct Function {
 #[derive(Debug)]
 pub enum Segment {
     Function(Function),
+    Include(PathBuf),
 }
 
 pub struct Counter {

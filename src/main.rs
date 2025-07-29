@@ -25,10 +25,10 @@ use crate::type_check::type_check_program;
 fn main() -> io::Result<()> {
     let cli = CasaCli::parse();
     let args = cli::parse_args(&cli);
+    let input_path = canonicalize_path_must_exist(&args.input);
 
-    print_if_verbose("Parsing code files", &args);
-    let input_path = canonicalize_path(&args.input);
-    let segments = lexer::parse_code_file(&input_path);
+    print_if_verbose("Parsing included files", &args);
+    let segments = lexer::parse_segments_from_included_files(&input_path);
 
     print_if_verbose("Type checking the program", &args);
     type_check_program(&segments);
@@ -47,7 +47,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn canonicalize_path(path: &Path) -> PathBuf {
+fn canonicalize_path_must_exist(path: &Path) -> PathBuf {
     match path.canonicalize() {
         Ok(path) => path,
         Err(error) => fatal_error_short(
