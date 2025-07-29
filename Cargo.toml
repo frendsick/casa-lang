@@ -1,5 +1,5 @@
 [package]
-name = "casa-lang"
+name = "casac"
 version = "0.1.0"
 edition = "2024"
 
