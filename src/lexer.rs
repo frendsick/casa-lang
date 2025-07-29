@@ -3,7 +3,7 @@ use crate::common::{
     Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment, Signature, Token,
     TokenType,
 };
-use crate::error::{CasaError, colored_error_tag, fatal_error};
+use crate::error::{CasaError, fatal_error, fatal_error_short};
 use indexmap::IndexSet;
 use std::collections::HashMap;
 use std::fs;
@@ -124,15 +124,10 @@ pub fn parse_code_file(file: &Path) -> Vec<Segment> {
     // Read code file
     let code = match fs::read_to_string(file) {
         Ok(code) => code,
-        Err(error) => {
-            eprintln!(
-                "{} Cannot read file '{}': {}",
-                colored_error_tag(CasaError::FileNotFound),
-                file.display(),
-                error
-            );
-            std::process::exit(1);
-        }
+        Err(error) => fatal_error_short(
+            CasaError::FileNotFound,
+            &format!("Cannot read file '{}': {}", file.display(), error),
+        ),
     };
 
     // Parse the code segments
