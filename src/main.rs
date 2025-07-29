@@ -19,22 +19,28 @@ use std::process::Command;
 
 use crate::cli::CasaCli;
 use crate::compile::compile_assembly_code;
-use crate::error::{CasaError, fatal_error_short};
+use crate::error::{CasaError, fatal_error_short, print_if_verbose};
 use crate::type_check::type_check_program;
 
 fn main() -> io::Result<()> {
     let cli = CasaCli::parse();
     let args = cli::parse_args(&cli);
-    let input_path = canonicalize_path(&args.input);
 
+    print_if_verbose("Parsing code files", &args);
+    let input_path = canonicalize_path(&args.input);
     let segments = lexer::parse_code_file(&input_path);
 
+    print_if_verbose("Type checking the program", &args);
     type_check_program(&segments);
 
+    print_if_verbose("Generating assembly code", &args);
     let assembly_code = asm::generate_assembly_code(&segments);
+
+    print_if_verbose("Compiling assembly code", &args);
     let executable = compile_assembly_code(&assembly_code, &input_path, &args)?;
 
     if matches!(cli, CasaCli::Run(_)) {
+        print_if_verbose("Running the program", &args);
         Command::new(executable).status()?;
     }
 

@@ -23,6 +23,10 @@ pub struct CasaArgs {
     /// Leave compiler artifacts to this directory
     #[arg(long, value_name = "DIR")]
     pub artifact_dir: Option<PathBuf>,
+
+    /// Use verbose output
+    #[arg(short, long)]
+    pub verbose: bool,
 }
 
 pub fn parse_args(cli: &CasaCli) -> CasaArgs {

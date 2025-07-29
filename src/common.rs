@@ -28,6 +28,8 @@ pub enum Ansi {
     Yellow,
     #[strum(to_string = "\x1B[94m")]
     Blue,
+    #[strum(to_string = "\x1B[95m")]
+    Purple,
 }
 
 #[derive(Debug)]

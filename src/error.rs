@@ -1,4 +1,7 @@
-use crate::common::{Ansi, Location};
+use crate::{
+    cli::CasaArgs,
+    common::{Ansi, Location},
+};
 use std::process::exit;
 use strum_macros::Display;
 
@@ -25,6 +28,12 @@ pub fn print_error(location: &Location, error: CasaError, message: &str) {
 
 pub fn print_error_short(error: CasaError, message: &str) {
     eprintln!("{} {}", colored_error_tag(error), message);
+}
+
+pub fn print_if_verbose(message: &str, args: &CasaArgs) {
+    if args.verbose {
+        eprintln!("[{}VERBOSE{}] {}", Ansi::Purple, Ansi::Reset, message);
+    }
 }
 
 pub fn fatal_error(location: &Location, error: CasaError, message: &str) -> ! {
