@@ -433,6 +433,18 @@ fn parse_function(parser: &mut Parser) -> Function {
                     variables.insert(token.value);
                 }
             }
+            TokenType::Keyword(Keyword::Bind) => binding = None,
+            // Variable names cannot shadow reserved words
+            _ if binding.is_some() && is_reserved_word(&token.value) => {
+                fatal_error(
+                    &token.location,
+                    CasaError::DuplicateIdentifier,
+                    &format!(
+                        "Cannot use reserved word as a variable name: `{}`",
+                        token.value
+                    ),
+                );
+            }
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
             TokenType::Keyword(Keyword::End) => {
@@ -446,7 +458,6 @@ fn parse_function(parser: &mut Parser) -> Function {
                     ops.push(op);
                 }
                 match keyword {
-                    Keyword::Bind => binding = None,
                     Keyword::Peek => binding = Some(Binding::Peek),
                     Keyword::Take => binding = Some(Binding::Take),
                     _ => {}
