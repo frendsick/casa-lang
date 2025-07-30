@@ -275,12 +275,35 @@ fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
     for segment in segments {
         match segment {
             Segment::Function(f) => {
-                global_identifiers.insert(f.name.clone(), Identifier::Function(f.clone()));
+                if let Some(existing_identifier) =
+                    global_identifiers.insert(f.name.clone(), Identifier::Function(f.clone()))
+                {
+                    duplicate_global_identifier_error(&f.name, existing_identifier, &f.location)
+                }
             }
             Segment::Include(_) => {}
         }
     }
     global_identifiers
+}
+
+fn duplicate_global_identifier_error(
+    identifier_name: &str,
+    defined_identifier: Identifier,
+    error_location: &Location,
+) -> ! {
+    let (identifier_type, identifier_location) = match defined_identifier {
+        Identifier::Function(f) => ("function", f.location),
+    };
+    let error_message = format!(
+        "Global identifier with the name `{}` is already defined as a {} at {}",
+        identifier_name, identifier_type, identifier_location,
+    );
+    fatal_error(
+        &error_location,
+        CasaError::DuplicateIdentifier,
+        &error_message,
+    );
 }
 
 fn resolve_global_identifiers(segments: &mut [Segment]) {
