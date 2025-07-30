@@ -9,6 +9,7 @@ use indexmap::IndexSet;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 static OP_COUNTER: Counter = Counter::new();
 
@@ -347,6 +348,10 @@ enum Binding {
     Peek,
 }
 
+fn is_reserved_word(name: &str) -> bool {
+    Intrinsic::from_str(name).is_ok() || Keyword::from_str(name).is_ok()
+}
+
 fn parse_function(parser: &mut Parser) -> Function {
     let mut ops = Vec::new();
     let error_prefix = "Error occurred while parsing a function";
@@ -377,7 +382,18 @@ fn parse_function(parser: &mut Parser) -> Function {
     }
 
     // Function name
-    let function_name = parser.parse_word();
+    let function_name_token = parse_next_token(parser);
+    let function_name = function_name_token.value;
+    if is_reserved_word(&function_name) {
+        fatal_error(
+            &function_name_token.location,
+            CasaError::DuplicateIdentifier,
+            &format!(
+                "Cannot use reserved word as a function name: `{}`",
+                function_name
+            ),
+        )
+    }
     parser.skip_whitespace();
 
     // Function signature
@@ -442,7 +458,7 @@ fn parse_function(parser: &mut Parser) -> Function {
     Function {
         name: function_name,
         signature,
-        location: fun_token.location,
+        location: function_name_token.location,
         is_inline,
         ops,
         variables,
@@ -619,6 +635,21 @@ fn get_identifier_op(token: &Token, binding: &Option<Binding>) -> Op {
         Some(Binding::Take) => OpType::TakeBind,
         None => OpType::Unknown, // Identifier resolution is performed later
     };
+
+    // Functions cannot shadow reserved words
+    if (op_type == OpType::PeekBind || op_type == OpType::TakeBind)
+        && is_reserved_word(&token.value)
+    {
+        fatal_error(
+            &token.location,
+            CasaError::DuplicateIdentifier,
+            &format!(
+                "Cannot use reserved word as a function name: `{}`",
+                token.value
+            ),
+        );
+    }
+
     Op::new(OP_COUNTER.fetch_add(), op_type, token)
 }
 
