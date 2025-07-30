@@ -1,6 +1,6 @@
 use crate::canonicalize_path_must_exist;
 use crate::common::{
-    Ansi, Counter, DELIMITERS, Function, GLOBAL_IDENTIFIERS, Identifier, IdentifierTable,
+    Ansi, Constant, Counter, DELIMITERS, Function, GLOBAL_IDENTIFIERS, Identifier, IdentifierTable,
     Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment, Signature, Token,
     TokenType,
 };
@@ -253,6 +253,7 @@ fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
     parser.skip_whitespace();
     let keyword = parser.peek_word();
     match keyword {
+        "const" => parse_const_segment(parser),
         "fun" | "inline" => Some(Segment::Function(parse_function(parser))),
         "#include" => parse_include_segment(parser),
         "" => None,
@@ -262,6 +263,46 @@ fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
             &format!("Unknown segment keyword: '{}'", keyword),
         ),
     }
+}
+
+fn parse_const_segment(parser: &mut Parser) -> Option<Segment> {
+    parser.expect_word("const")?;
+    parser.skip_whitespace();
+
+    let const_name_token = parse_next_token(parser);
+    let name = const_name_token.value.clone();
+    if is_reserved_word(&name) {
+        fatal_error(
+            &const_name_token.location,
+            CasaError::InvalidIdentifier,
+            &format!(
+                "Cannot use reserved word as a constant name: `{}`",
+                &const_name_token.value
+            ),
+        );
+    }
+    parser.skip_whitespace();
+
+    let literal_token = parse_next_token(parser);
+    let literal = match literal_token.ty {
+        TokenType::Literal(literal) => literal,
+        _ => fatal_error(
+            &literal_token.location,
+            CasaError::SyntaxError,
+            &format!("Invalid constant literal: {}", literal_token.value),
+        ),
+    };
+    parser.skip_whitespace();
+
+    parser.expect_word("end");
+    parser.skip_whitespace();
+
+    let constant = Constant {
+        name,
+        literal,
+        location: const_name_token.location,
+    };
+    Some(Segment::Constant(constant))
 }
 
 fn parse_include_segment(parser: &mut Parser) -> Option<Segment> {
@@ -275,11 +316,18 @@ fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
     let mut global_identifiers: IdentifierTable = HashMap::new();
     for segment in segments {
         match segment {
+            Segment::Constant(c) => {
+                if let Some(identifier) =
+                    global_identifiers.insert(c.name.clone(), Identifier::Constant(c.clone()))
+                {
+                    duplicate_global_identifier_error(&c.name, identifier, &c.location)
+                }
+            }
             Segment::Function(f) => {
-                if let Some(existing_identifier) =
+                if let Some(identifier) =
                     global_identifiers.insert(f.name.clone(), Identifier::Function(f.clone()))
                 {
-                    duplicate_global_identifier_error(&f.name, existing_identifier, &f.location)
+                    duplicate_global_identifier_error(&f.name, identifier, &f.location)
                 }
             }
             Segment::Include(_) => {}
@@ -294,6 +342,7 @@ fn duplicate_global_identifier_error(
     error_location: &Location,
 ) -> ! {
     let (identifier_type, identifier_location) = match defined_identifier {
+        Identifier::Constant(c) => ("constant", c.location),
         Identifier::Function(f) => ("function", f.location),
     };
     let error_message = format!(
@@ -302,7 +351,7 @@ fn duplicate_global_identifier_error(
     );
     fatal_error(
         &error_location,
-        CasaError::DuplicateIdentifier,
+        CasaError::InvalidIdentifier,
         &error_message,
     );
 }
@@ -322,6 +371,8 @@ fn resolve_global_identifiers(segments: &mut [Segment]) {
 }
 
 fn resolve_identifiers_for_function(function: &mut Function, global_identifiers: &IdentifierTable) {
+    let function_name = &function.name;
+
     for op in &mut function.ops {
         if op.ty != OpType::Unknown {
             continue;
@@ -329,6 +380,20 @@ fn resolve_identifiers_for_function(function: &mut Function, global_identifiers:
 
         // Global identifiers
         match global_identifiers.get(&op.token.value) {
+            Some(Identifier::Constant(c)) => {
+                op.token.ty = TokenType::Literal(c.literal.clone());
+                match &c.literal {
+                    Literal::Boolean(b) => {
+                        op.ty = OpType::PushBool;
+                    }
+                    Literal::Integer(i) => {
+                        op.ty = OpType::PushInt;
+                    }
+                    Literal::String(s) => {
+                        op.ty = OpType::PushStr;
+                    }
+                }
+            }
             Some(Identifier::Function(f)) => match f.is_inline {
                 true => op.ty = OpType::InlineFunctionCall,
                 false => op.ty = OpType::FunctionCall,
@@ -387,7 +452,7 @@ fn parse_function(parser: &mut Parser) -> Function {
     if is_reserved_word(&function_name) {
         fatal_error(
             &function_name_token.location,
-            CasaError::DuplicateIdentifier,
+            CasaError::InvalidIdentifier,
             &format!(
                 "Cannot use reserved word as a function name: `{}`",
                 function_name
@@ -438,7 +503,7 @@ fn parse_function(parser: &mut Parser) -> Function {
             _ if binding.is_some() && is_reserved_word(&token.value) => {
                 fatal_error(
                     &token.location,
-                    CasaError::DuplicateIdentifier,
+                    CasaError::InvalidIdentifier,
                     &format!(
                         "Cannot use reserved word as a variable name: `{}`",
                         token.value
@@ -653,7 +718,7 @@ fn get_identifier_op(token: &Token, binding: &Option<Binding>) -> Op {
     {
         fatal_error(
             &token.location,
-            CasaError::DuplicateIdentifier,
+            CasaError::InvalidIdentifier,
             &format!(
                 "Cannot use reserved word as a function name: `{}`",
                 token.value
@@ -724,4 +789,8 @@ fn parse_string_literal(parser: &mut Parser) -> Option<String> {
     }
 
     None
+}
+
+pub fn is_string_literal(s: &str) -> bool {
+    unquote(s).is_some()
 }

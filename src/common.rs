@@ -34,6 +34,7 @@ pub enum Ansi {
 
 #[derive(Debug)]
 pub enum Identifier {
+    Constant(Constant),
     Function(Function),
 }
 
@@ -277,6 +278,13 @@ impl fmt::Display for Signature {
 }
 
 #[derive(Debug, Clone)]
+pub struct Constant {
+    pub name: String,
+    pub literal: Literal,
+    pub location: Location,
+}
+
+#[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
     pub signature: Signature,
@@ -288,6 +296,7 @@ pub struct Function {
 
 #[derive(Debug)]
 pub enum Segment {
+    Constant(Constant),
     Function(Function),
     Include(PathBuf),
 }
