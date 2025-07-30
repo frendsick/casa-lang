@@ -132,8 +132,9 @@ pub fn type_check_program(segments: &[Segment]) {
 }
 
 fn type_check_function(function: &Function) {
-    let mut type_stack =
-        Vec::from_types(&function.signature.params.get_types(), &function.location);
+    let params = &function.signature.params;
+    let param_types_rev: Vec<String> = params.get_types().iter().rev().cloned().collect();
+    let mut type_stack = Vec::from_types(&param_types_rev, &function.location);
     let mut branched_stacks: Vec<BranchedStack> = Vec::new();
     let mut variables = IndexMap::new();
     let mut peek_index: usize = 0;
