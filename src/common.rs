@@ -171,10 +171,8 @@ impl Token {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpType {
-    FunctionCall,
     FunctionEpilogue,
     FunctionPrologue,
-    InlineFunctionCall,
     Intrinsic(Intrinsic),
     PushBool,
     PushInt,
@@ -201,10 +199,9 @@ pub enum OpType {
     Bind,
     TakeBind,
     PeekBind,
-    PushBind,
 
     // Must be resolved later
-    Unknown,
+    Identifier,
 }
 
 #[derive(Debug, Clone)]

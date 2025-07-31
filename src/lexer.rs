@@ -213,7 +213,11 @@ fn parse_segments_from_code(code: &str, file: &Path) -> Vec<Segment> {
     parse_code_segments(&mut parser)
 }
 
-fn unquote(string: &str) -> Option<&str> {
+pub fn quote(string: &str) -> String {
+    format!("\"{}\"", string)
+}
+
+pub fn unquote(string: &str) -> Option<&str> {
     if string.len() >= 2 && string.starts_with('"') && string.ends_with('"') {
         Some(&string[1..string.len() - 1])
     } else {
@@ -358,54 +362,9 @@ fn duplicate_global_identifier_error(
 
 fn resolve_global_identifiers(segments: &mut [Segment]) {
     let global_identifiers = get_global_identifiers(segments);
-    for segment in segments.iter_mut() {
-        if let Segment::Function(func) = segment {
-            resolve_identifiers_for_function(func, &global_identifiers);
-        }
-    }
-
-    // Store global identifiers for later use
     GLOBAL_IDENTIFIERS
         .set(global_identifiers)
         .expect("Global identifiers are only set here");
-}
-
-fn resolve_identifiers_for_function(function: &mut Function, global_identifiers: &IdentifierTable) {
-    let function_name = &function.name;
-
-    for op in &mut function.ops {
-        if op.ty != OpType::Unknown {
-            continue;
-        }
-
-        // Global identifiers
-        match global_identifiers.get(&op.token.value) {
-            Some(Identifier::Constant(c)) => {
-                op.token.ty = TokenType::Literal(c.literal.clone());
-                match &c.literal {
-                    Literal::Boolean(b) => {
-                        op.ty = OpType::PushBool;
-                    }
-                    Literal::Integer(i) => {
-                        op.ty = OpType::PushInt;
-                    }
-                    Literal::String(s) => {
-                        op.ty = OpType::PushStr;
-                    }
-                }
-            }
-            Some(Identifier::Function(f)) => match f.is_inline {
-                true => op.ty = OpType::InlineFunctionCall,
-                false => op.ty = OpType::FunctionCall,
-            },
-            None => {}
-        }
-
-        // Variables
-        if function.variables.get(&op.token.value).is_some() {
-            op.ty = OpType::PushBind;
-        }
-    }
 }
 
 enum Binding {
@@ -709,7 +668,7 @@ fn get_identifier_op(token: &Token, binding: &Option<Binding>) -> Op {
     let op_type = match binding {
         Some(Binding::Peek) => OpType::PeekBind,
         Some(Binding::Take) => OpType::TakeBind,
-        None => OpType::Unknown, // Identifier resolution is performed later
+        None => OpType::Identifier,
     };
 
     // Functions cannot shadow reserved words
@@ -789,8 +748,4 @@ fn parse_string_literal(parser: &mut Parser) -> Option<String> {
     }
 
     None
-}
-
-pub fn is_string_literal(s: &str) -> bool {
-    unquote(s).is_some()
 }

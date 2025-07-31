@@ -1,10 +1,12 @@
 use crate::common::{
-    Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment, Token,
+    DataSize, Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Op, OpType, Segment,
     TokenType, get_related_done_id, get_related_elif_id, get_related_else_id, get_related_fi_id,
     get_related_while_id,
 };
 use crate::error::{CasaError, fatal_error};
-use crate::lexer::is_string_literal;
+use crate::lexer::quote;
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use itertools::Itertools;
 use std::collections::HashMap;
 use strum_macros::Display;
@@ -39,14 +41,18 @@ fn get_asm_text_section(segments: &[Segment], file_numbers: &HashMap<String, usi
 .globl _start";
     asm_blocks.push(header.to_string());
 
-    let entry_function = "_start:
+    let main_label = get_asm_label_for_gas("main");
+    let entry_function = format!(
+        "_start:
 movq %rsp, (args_ptr)
 leaq return_stack(%rip), %r14
-call main
+call {}
 popq %rdi
 movq $60, %rax
 syscall
-ret";
+ret",
+        main_label
+    );
     asm_blocks.push(entry_function.to_string());
 
     for segment in segments {
@@ -57,6 +63,13 @@ ret";
     }
 
     asm_blocks.join("\n\n")
+}
+
+fn get_asm_label_for_gas(name: &str) -> String {
+    BASE64_STANDARD
+        .encode(name)
+        .replace('=', "_")
+        .replace('+', ".")
 }
 
 fn get_asm_file_numbers(segments: &[Segment]) -> HashMap<String, usize> {
@@ -79,7 +92,7 @@ fn get_asm_for_function(function: &Function, file_numbers: &HashMap<String, usiz
     format!(
         "{}:
 {}",
-        function.name,
+        get_asm_label_for_gas(&function.name),
         get_asm_for_function_ops(function, file_numbers)
     )
 }
@@ -101,10 +114,21 @@ fn get_asm_data_section(segments: &[Segment]) -> String {
 
     for segment in segments {
         match segment {
-            Segment::Function(function) => {
-                asm_blocks.push(get_asm_data_section_entries_function(function))
+            Segment::Constant(constant) => {
+                if let Literal::String(literal) = &constant.literal {
+                    let variable_name = get_asm_string_variable_name("const", &constant.name);
+                    let string_variable =
+                        generate_asm_string_variable(&variable_name, &quote(&literal));
+                    asm_blocks.push(string_variable);
+                }
             }
-            Segment::Constant(_) | Segment::Include(_) => {}
+            Segment::Function(function) => {
+                let function_entries = get_asm_data_section_entries_function(function);
+                if !function_entries.is_empty() {
+                    asm_blocks.push(function_entries);
+                }
+            }
+            Segment::Include(_) => {}
         }
     }
 
@@ -115,7 +139,8 @@ fn get_asm_data_section_entries_function(function: &Function) -> String {
     let mut asm_blocks = Vec::new();
     for op in &function.ops {
         if op.ty == OpType::PushStr {
-            let string_variable = generate_asm_string_variable(op, function);
+            let variable_name = get_asm_string_variable_name(&function.name, &op.id.to_string());
+            let string_variable = generate_asm_string_variable(&variable_name, &op.token.value);
             asm_blocks.push(string_variable);
         }
     }
@@ -129,41 +154,16 @@ fn get_asm_location_for_op(op: &Op, file_numbers: &HashMap<String, usize>) -> St
     format!(".loc {} {} {}", file_number, location.row, location.col)
 }
 
-fn generate_asm_string_variable(op: &Op, function: &Function) -> String {
-    let (prefix, value) = if is_string_literal(&op.token.value) {
-        (&function.name, &op.token.value)
-    } else {
-        let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
-        match global_identifiers.get(&op.token.value) {
-            Some(Identifier::Constant(c)) => match &c.literal {
-                Literal::String(string) => (&c.name, &format!("\"{}\"", string)),
-                _ => string_variable_generation_error(&op.token),
-            },
-            _ => string_variable_generation_error(&op.token),
-        }
-    };
-
+fn generate_asm_string_variable(variable_name: &str, value: &str) -> String {
     format!(
         "{}:
 .asciz {}",
-        get_asm_string_variable_name(op, &prefix),
-        value,
+        variable_name, value,
     )
 }
 
-fn string_variable_generation_error(token: &Token) -> ! {
-    fatal_error(
-        &token.location,
-        CasaError::InternalCompilerError,
-        &format!(
-            "Cannot generate assembly string variable for token: {}",
-            token.value
-        ),
-    );
-}
-
-fn get_asm_string_variable_name(op: &Op, prefix: &str) -> String {
-    format!("{}_s{}", prefix, op.id)
+fn get_asm_string_variable_name(prefix: &str, name: &str) -> String {
+    get_asm_label_for_gas(&format!("{}_{}", prefix, name))
 }
 
 fn get_asm_code_for_op(
@@ -180,7 +180,6 @@ fn get_asm_code_for_op(
         OpType::Elif => get_asm_elif(op, function),
         OpType::Else => get_asm_else(op, function),
         OpType::Fi => get_asm_fi(op, function),
-        OpType::FunctionCall => get_asm_function_call(&op.token.value),
         OpType::FunctionEpilogue => match function.is_inline {
             true => "".to_string(),
             false => get_asm_function_epilogue(function),
@@ -189,36 +188,56 @@ fn get_asm_code_for_op(
             true => "".to_string(),
             false => get_asm_function_prologue(function),
         },
-        OpType::If => "".to_string(),
-        OpType::InlineFunctionCall => {
+        OpType::Identifier => {
             let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
-            let called_function = match global_identifiers.get(&op.token.value) {
-                Some(Identifier::Function(f)) => f,
-                _ => fatal_error(
-                    &op.token.location,
-                    CasaError::InternalCompilerError,
-                    &format!("Unknown function identifier `{}`", op.token.value),
-                ),
-            };
-            get_asm_for_function_ops(called_function, file_numbers)
+            match global_identifiers.get(&op.token.value) {
+                Some(Identifier::Constant(c)) => match &c.literal {
+                    Literal::Boolean(b) => get_asm_push_bool(*b),
+                    Literal::Integer(i) => get_asm_push_int(*i),
+                    Literal::String(_) => {
+                        let variable_name = get_asm_string_variable_name("const", &op.token.value);
+                        get_asm_push_str(&variable_name)
+                    }
+                },
+                Some(Identifier::Function(f)) => match f.is_inline {
+                    false => get_asm_function_call(&f.name),
+                    true => {
+                        let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
+                        let called_function = match global_identifiers.get(&op.token.value) {
+                            Some(Identifier::Function(f)) => f,
+                            _ => fatal_error(
+                                &op.token.location,
+                                CasaError::InternalCompilerError,
+                                &format!("Unknown function identifier `{}`", op.token.value),
+                            ),
+                        };
+                        get_asm_for_function_ops(called_function, file_numbers)
+                    }
+                },
+                None => get_asm_push_bind(op, function),
+            }
         }
+        OpType::If => "".to_string(),
         OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
         OpType::Peek => get_asm_peek().to_string(),
         OpType::PeekBind => get_asm_peek_bind(op, function),
-        OpType::PushBind => get_asm_push_bind(op, function),
-        OpType::PushBool => get_asm_push_bool(op),
-        OpType::PushInt => get_asm_push_int(op),
-        OpType::PushStr => get_asm_push_str(op, function),
+        OpType::PushBool => match op.token.ty {
+            TokenType::Literal(Literal::Boolean(b)) => get_asm_push_bool(b),
+            _ => unreachable!("Expected a boolean literal"),
+        },
+        OpType::PushInt => match op.token.ty {
+            TokenType::Literal(Literal::Integer(i)) => get_asm_push_int(i),
+            _ => unreachable!("Expected an integer literal"),
+        },
+        OpType::PushStr => {
+            let variable_name = get_asm_string_variable_name(&function.name, &op.id.to_string());
+            get_asm_push_str(&variable_name)
+        }
         OpType::Return => get_asm_return(function),
         OpType::Take => "".to_string(),
         OpType::TakeBind => get_asm_take_bind(op, function),
         OpType::Then => get_asm_then(op, function),
         OpType::While => get_asm_while(op, function),
-        // All unknown ops should be resolved before assembly generation
-        OpType::Unknown => {
-            dbg!(op);
-            todo!()
-        }
     }
 }
 
@@ -292,41 +311,28 @@ fn get_asm_push_bind(op: &Op, function: &Function) -> String {
     format!("pushq -{}(%r14)", variable_index * 8 + 8)
 }
 
-fn get_asm_push_bool(op: &Op) -> String {
-    match op.token.ty {
-        TokenType::Literal(Literal::Boolean(boolean)) => format!(
-            "mov ${}, %rax
+fn get_asm_push_bool(value: bool) -> String {
+    format!(
+        "mov ${}, %rax
 pushq %rax",
-            boolean as u8
-        ),
-        _ => unreachable!("Expected a boolean literal"),
-    }
+        value as u8
+    )
 }
 
-fn get_asm_push_int(op: &Op) -> String {
-    match op.token.ty {
-        TokenType::Literal(Literal::Integer(integer)) => format!(
-            "movabs ${}, %rax
+fn get_asm_push_int(value: i32) -> String {
+    format!(
+        "movabs ${}, %rax
 pushq %rax",
-            integer
-        ),
-        _ => unreachable!("Expected in integer literal"),
-    }
+        value
+    )
 }
 
-fn get_asm_push_str(op: &Op, function: &Function) -> String {
-    let variable_name = if is_string_literal(&op.token.value) {
-        get_asm_string_variable_name(op, &function.name)
-    } else {
-        get_asm_string_variable_name(op, &op.token.value)
-    };
-
+fn get_asm_push_str(asm_variable_name: &str) -> String {
     format!(
         "leaq {}(%rip), %rsi
 pushq %rsi",
-        variable_name
+        asm_variable_name
     )
-    .to_string()
 }
 
 fn get_asm_fi(op: &Op, function: &Function) -> String {
@@ -499,7 +505,7 @@ fn get_asm_return(function: &Function) -> String {
 }
 
 fn get_asm_function_call(function_name: &str) -> String {
-    format!("call {}", function_name)
+    format!("call {}", get_asm_label_for_gas(function_name))
 }
 
 fn get_asm_add() -> &'static str {

@@ -1,5 +1,5 @@
 use crate::common::{
-    Ansi, Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Location, Op, OpType,
+    Ansi, Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Location, Op, OpType,
     ParameterSlice, Segment,
 };
 use crate::error::{CasaError, fatal_error};
@@ -156,11 +156,30 @@ fn type_check_function(function: &Function) {
                 type_check_fi(op, &type_stack, &branched_stacks);
                 assert!(branched_stacks.pop().is_some());
             }
-            OpType::FunctionCall | OpType::InlineFunctionCall => {
-                type_check_function_call(op, &mut type_stack)
-            }
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
+            OpType::Identifier => {
+                // Global identifiers
+                let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
+                match global_identifiers.get(&op.token.value) {
+                    Some(Identifier::Constant(c)) => match &c.literal {
+                        Literal::Boolean(b) => type_stack.push_type("bool", &op.token.location),
+                        Literal::Integer(i) => type_stack.push_type("int", &op.token.location),
+                        Literal::String(s) => type_stack.push_type("str", &op.token.location),
+                    },
+                    Some(Identifier::Function(f)) => {
+                        type_check_function_call(op, &mut type_stack, f)
+                    }
+                    None => match variables.get(&op.token.value) {
+                        Some(ty) => type_stack.push_type(ty, &op.token.location),
+                        None => fatal_error(
+                            &op.token.location,
+                            CasaError::UnknownIdentifier,
+                            &format!("Unknown identifier: {:?}", op),
+                        ),
+                    },
+                }
+            }
             OpType::If => {
                 branched_stacks.push(BranchedStack::new(BranchType::IfBlock, &type_stack))
             }
@@ -170,7 +189,6 @@ fn type_check_function(function: &Function) {
                 type_check_peek_bind(op, &mut type_stack, &mut variables, peek_index);
                 peek_index += 1;
             }
-            OpType::PushBind => type_check_push_bind(op, &mut type_stack, &variables),
             OpType::PushBool => type_stack.push_type("bool", &op.token.location),
             OpType::PushInt => type_stack.push_type("int", &op.token.location),
             OpType::PushStr => type_stack.push_type("str", &op.token.location),
@@ -180,11 +198,6 @@ fn type_check_function(function: &Function) {
             OpType::Then => type_check_then(op, &mut type_stack, &branched_stacks),
             OpType::While => {
                 branched_stacks.push(BranchedStack::new(BranchType::WhileLoop, &type_stack))
-            }
-            // All unknown ops should be resolved before type checking
-            OpType::Unknown => {
-                dbg!(op);
-                todo!()
             }
         }
     }
@@ -336,7 +349,7 @@ fn type_check_fi(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedSt
     type_check_stack_state(op, type_stack, branched_stacks, BranchType::IfBlock);
 }
 
-fn type_check_function_call(op: &Op, type_stack: &mut Vec<TypeNode>) {
+fn type_check_function_call(op: &Op, type_stack: &mut Vec<TypeNode>, function: &Function) {
     let function_name = &op.token.value;
     let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
     let function = match global_identifiers.get(function_name) {
