@@ -21,8 +21,8 @@ pub fn generate_assembly_code(segments: &[Segment]) -> String {
     [
         file_directives,
         get_asm_bss_section().to_string(),
-        get_asm_text_section(segments, &file_numbers),
         get_asm_data_section(segments),
+        get_asm_text_section(segments, &file_numbers),
     ]
     .join("\n\n")
 }
