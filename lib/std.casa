@@ -1,0 +1,14 @@
+inline fun + int int -> int :: add end
+inline fun - int int -> int :: sub end
+inline fun * int int -> int :: mul end
+inline fun / int int -> int :: div end
+inline fun % int int -> int :: mod end
+
+inline fun ==   int int   -> bool :: eq  end
+inline fun !=   int int   -> bool :: ne  end
+inline fun >    int int   -> bool :: gt  end
+inline fun >=   int int   -> bool :: ge  end
+inline fun <    int int   -> bool :: lt  end
+inline fun <=   int int   -> bool :: le  end
+inline fun &&   bool bool -> bool :: and end
+inline fun ||   bool bool -> bool :: or  end
