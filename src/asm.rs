@@ -487,8 +487,13 @@ fn get_asm_peek_bind(op: &Op, function: &Function) -> String {
             panic!()
         }
     };
+
+    // Push copy of the Nth value from the data stack
+    // and store it to a variable in the return stack
     format!(
-        "popq %rbx
+        "pushq (%r15)
+addq $8, %r15
+popq %rbx
 movq %rbx, -{}(%r14)",
         variable_index * 8 + 8
     )
