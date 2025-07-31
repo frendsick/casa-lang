@@ -297,11 +297,12 @@ pub struct Function {
     pub signature: Signature,
     pub location: Location,
     pub is_inline: bool,
+    pub is_used: bool,
     pub ops: Vec<Op>,
     pub variables: IndexSet<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Segment {
     Constant(Constant),
     Function(Function),

@@ -122,16 +122,20 @@ impl BranchedStack {
     }
 }
 
-pub fn type_check_program(segments: &[Segment]) {
+pub fn type_check_program(segments: &[Segment]) -> Vec<Segment> {
+    let mut new_segments = segments.to_vec();
     for segment in segments {
         match segment {
-            Segment::Function(f) => type_check_function(f),
+            Segment::Function(f) => {
+                type_check_function(&f, &mut new_segments);
+            }
             Segment::Constant(_) | Segment::Include(_) => {}
         }
     }
+    new_segments
 }
 
-fn type_check_function(function: &Function) {
+fn type_check_function(function: &Function, segments: &mut [Segment]) {
     let params = &function.signature.params;
     let param_types_rev: Vec<String> = params.get_types().iter().rev().cloned().collect();
     let mut type_stack = Vec::from_types(&param_types_rev, &function.location);
@@ -169,7 +173,16 @@ fn type_check_function(function: &Function) {
                         Literal::String(s) => type_stack.push_type("str", &op.token.location),
                     },
                     Some(Identifier::Function(f)) => {
-                        type_check_function_call(op, &mut type_stack, f)
+                        type_check_function_call(op, &mut type_stack, f);
+
+                        // Set function as used
+                        for segment in &mut *segments {
+                            if let Segment::Function(other_f) = segment
+                                && f.name == other_f.name
+                            {
+                                other_f.is_used = true;
+                            }
+                        }
                     }
                     None => match variables.get(&op.token.value) {
                         Some(ty) => type_stack.push_type(ty, &op.token.location),

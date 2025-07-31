@@ -57,8 +57,10 @@ ret",
 
     for segment in segments {
         match segment {
-            Segment::Function(f) => asm_blocks.push(get_asm_for_function(f, &file_numbers)),
-            Segment::Constant(_) | Segment::Include(_) => {}
+            Segment::Function(f) if f.is_used => {
+                asm_blocks.push(get_asm_for_function(f, &file_numbers))
+            }
+            _ => {}
         }
     }
 
@@ -124,13 +126,13 @@ fn get_asm_data_section(segments: &[Segment]) -> String {
                     asm_blocks.push(string_variable);
                 }
             }
-            Segment::Function(function) => {
+            Segment::Function(function) if function.is_used => {
                 let function_entries = get_asm_data_section_entries_function(function);
                 if !function_entries.is_empty() {
                     asm_blocks.push(function_entries);
                 }
             }
-            Segment::Include(_) => {}
+            _ => {}
         }
     }
 

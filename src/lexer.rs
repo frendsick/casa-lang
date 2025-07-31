@@ -544,10 +544,11 @@ fn parse_function(parser: &mut Parser) -> Function {
     }
 
     Function {
-        name: function_name,
+        name: function_name.clone(),
         signature,
         location: function_name_token.location,
         is_inline,
+        is_used: function_name == "main",
         ops,
         variables,
     }
