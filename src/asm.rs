@@ -101,7 +101,9 @@ fn get_asm_for_function_ops(function: &Function, file_numbers: &HashMap<String, 
     let mut asm_blocks = Vec::new();
     for op in &function.ops {
         asm_blocks.push(get_asm_location_for_op(op, file_numbers));
-        asm_blocks.push(get_asm_code_for_op(op, function, file_numbers));
+        if let Some(asm_code) = get_asm_code_for_op(op, function, file_numbers) {
+            asm_blocks.push(asm_code);
+        }
     }
 
     asm_blocks.join("\n")
@@ -170,37 +172,37 @@ fn get_asm_code_for_op(
     op: &Op,
     function: &Function,
     file_numbers: &HashMap<String, usize>,
-) -> String {
+) -> Option<String> {
     match &op.ty {
-        OpType::Bind => "".to_string(),
-        OpType::Break => get_asm_break(op, function),
-        OpType::Continue => get_asm_continue(op, function),
-        OpType::Do => get_asm_do(op, function),
-        OpType::Done => get_asm_done(op, function),
-        OpType::Elif => get_asm_elif(op, function),
-        OpType::Else => get_asm_else(op, function),
-        OpType::Fi => get_asm_fi(op, function),
+        OpType::Bind => None,
+        OpType::Break => Some(get_asm_break(op, function)),
+        OpType::Continue => Some(get_asm_continue(op, function)),
+        OpType::Do => Some(get_asm_do(op, function)),
+        OpType::Done => Some(get_asm_done(op, function)),
+        OpType::Elif => Some(get_asm_elif(op, function)),
+        OpType::Else => Some(get_asm_else(op, function)),
+        OpType::Fi => Some(get_asm_fi(op, function)),
         OpType::FunctionEpilogue => match function.is_inline {
-            true => "".to_string(),
-            false => get_asm_function_epilogue(function),
+            true => None,
+            false => Some(get_asm_function_epilogue(function)),
         },
         OpType::FunctionPrologue => match function.is_inline {
-            true => "".to_string(),
-            false => get_asm_function_prologue(function),
+            true => None,
+            false => Some(get_asm_function_prologue(function)),
         },
         OpType::Identifier => {
             let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
             match global_identifiers.get(&op.token.value) {
                 Some(Identifier::Constant(c)) => match &c.literal {
-                    Literal::Boolean(b) => get_asm_push_bool(*b),
-                    Literal::Integer(i) => get_asm_push_int(*i),
+                    Literal::Boolean(b) => Some(get_asm_push_bool(*b)),
+                    Literal::Integer(i) => Some(get_asm_push_int(*i)),
                     Literal::String(_) => {
                         let variable_name = get_asm_string_variable_name("const", &op.token.value);
-                        get_asm_push_str(&variable_name)
+                        Some(get_asm_push_str(&variable_name))
                     }
                 },
                 Some(Identifier::Function(f)) => match f.is_inline {
-                    false => get_asm_function_call(&f.name),
+                    false => Some(get_asm_function_call(&f.name)),
                     true => {
                         let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
                         let called_function = match global_identifiers.get(&op.token.value) {
@@ -211,33 +213,33 @@ fn get_asm_code_for_op(
                                 &format!("Unknown function identifier `{}`", op.token.value),
                             ),
                         };
-                        get_asm_for_function_ops(called_function, file_numbers)
+                        Some(get_asm_for_function_ops(called_function, file_numbers))
                     }
                 },
-                None => get_asm_push_bind(op, function),
+                None => Some(get_asm_push_bind(op, function)),
             }
         }
-        OpType::If => "".to_string(),
-        OpType::Intrinsic(intrinsic) => get_asm_intrinsic(intrinsic),
-        OpType::Peek => get_asm_peek().to_string(),
-        OpType::PeekBind => get_asm_peek_bind(op, function),
+        OpType::If => None,
+        OpType::Intrinsic(intrinsic) => Some(get_asm_intrinsic(intrinsic)),
+        OpType::Peek => Some(get_asm_peek().to_string()),
+        OpType::PeekBind => Some(get_asm_peek_bind(op, function)),
         OpType::PushBool => match op.token.ty {
-            TokenType::Literal(Literal::Boolean(b)) => get_asm_push_bool(b),
+            TokenType::Literal(Literal::Boolean(b)) => Some(get_asm_push_bool(b)),
             _ => unreachable!("Expected a boolean literal"),
         },
         OpType::PushInt => match op.token.ty {
-            TokenType::Literal(Literal::Integer(i)) => get_asm_push_int(i),
+            TokenType::Literal(Literal::Integer(i)) => Some(get_asm_push_int(i)),
             _ => unreachable!("Expected an integer literal"),
         },
         OpType::PushStr => {
             let variable_name = get_asm_string_variable_name(&function.name, &op.id.to_string());
-            get_asm_push_str(&variable_name)
+            Some(get_asm_push_str(&variable_name))
         }
-        OpType::Return => get_asm_return(function),
-        OpType::Take => "".to_string(),
-        OpType::TakeBind => get_asm_take_bind(op, function),
-        OpType::Then => get_asm_then(op, function),
-        OpType::While => get_asm_while(op, function),
+        OpType::Return => Some(get_asm_return(function)),
+        OpType::Take => None,
+        OpType::TakeBind => Some(get_asm_take_bind(op, function)),
+        OpType::Then => Some(get_asm_then(op, function)),
+        OpType::While => Some(get_asm_while(op, function)),
     }
 }
 
