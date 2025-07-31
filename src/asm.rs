@@ -280,6 +280,10 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
         Intrinsic::Ge => get_asm_comparison(SetOperand::Setge),
         Intrinsic::Gt => get_asm_comparison(SetOperand::Setg),
         Intrinsic::Le => get_asm_comparison(SetOperand::Setle),
+        Intrinsic::LoadByte => get_asm_load(DataSize::Byte),
+        Intrinsic::LoadWord => get_asm_load(DataSize::Word),
+        Intrinsic::LoadDword => get_asm_load(DataSize::Dword),
+        Intrinsic::LoadQword => get_asm_load(DataSize::Qword),
         Intrinsic::Lt => get_asm_comparison(SetOperand::Setl),
         Intrinsic::Mod => get_asm_mod().to_string(),
         Intrinsic::Mul => get_asm_mul().to_string(),
@@ -556,6 +560,22 @@ fn get_asm_drop() -> &'static str {
 
 fn get_asm_dup() -> &'static str {
     "pushq (%rsp)"
+}
+
+fn get_asm_load(size: DataSize) -> String {
+    let load_asm = match size {
+        DataSize::Byte => "movzbl (%rax), %eax",
+        DataSize::Word => "movzwl (%rax), %eax",
+        DataSize::Dword => "movl (%rax), %eax",
+        DataSize::Qword => "movq (%rax), %rax",
+    };
+
+    format!(
+        "popq %rax
+{}
+pushq %rax",
+        load_asm
+    )
 }
 
 fn get_asm_mod() -> &'static str {

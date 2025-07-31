@@ -89,6 +89,15 @@ pub enum Literal {
     String(String),
 }
 
+#[derive(Debug, EnumString, Display)]
+#[strum(serialize_all = "UPPERCASE")]
+pub enum DataSize {
+    Byte,
+    Word,
+    Dword,
+    Qword,
+}
+
 #[derive(Debug, Clone, PartialEq, EnumString, Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum Intrinsic {
