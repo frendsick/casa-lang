@@ -136,13 +136,14 @@ fn type_check_function(function: &Function) {
     let param_types_rev: Vec<String> = params.get_types().iter().rev().cloned().collect();
     let mut type_stack = Vec::from_types(&param_types_rev, &function.location);
     let mut branched_stacks: Vec<BranchedStack> = Vec::new();
-    let mut variables = IndexMap::new();
+    let mut variables: IndexMap<String, String> = IndexMap::new();
     let mut peek_index: usize = 0;
 
     // Type check ops
     for op in &function.ops {
         match &op.ty {
             OpType::Bind => peek_index = 0,
+            OpType::Cast(ty) => type_check_cast(op, &mut type_stack, ty),
             OpType::Break => type_check_break(op, &type_stack, &branched_stacks),
             OpType::Continue => type_check_continue(op, &type_stack, &branched_stacks),
             OpType::Do => type_check_do(op, &mut type_stack, &branched_stacks),
@@ -272,6 +273,19 @@ fn type_check_stack_state(
 
 fn type_check_break(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedStack]) {
     type_check_stack_state(op, type_stack, branched_stacks, BranchType::WhileLoop);
+}
+
+fn type_check_cast(op: &Op, type_stack: &mut Vec<TypeNode>, casted_type: &str) {
+    let old_node = match type_stack.pop() {
+        Some(node) => node,
+        None => fatal_error(
+            &op.token.location,
+            CasaError::StackUnderflow,
+            "Cannot cast value from an empty stack",
+        ),
+    };
+
+    type_stack.push_type(casted_type, &old_node.location);
 }
 
 fn type_check_continue(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedStack]) {

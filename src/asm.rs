@@ -176,6 +176,7 @@ fn get_asm_code_for_op(
     match &op.ty {
         OpType::Bind => None,
         OpType::Break => Some(get_asm_break(op, function)),
+        OpType::Cast(_) => None,
         OpType::Continue => Some(get_asm_continue(op, function)),
         OpType::Do => Some(get_asm_do(op, function)),
         OpType::Done => Some(get_asm_done(op, function)),

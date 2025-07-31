@@ -82,6 +82,10 @@ impl Parser<'_> {
         self.cursor = self.code.len();
     }
 
+    fn peek_char(&self) -> Option<char> {
+        self.rest().chars().next()
+    }
+
     /// Peeks what the next parsed word would be.
     /// Parsing stops on whitespace and delimiter characters.
     /// Returns an empty string only if the parsing is finished.
@@ -103,6 +107,16 @@ impl Parser<'_> {
         let word = self.peek_word().to_string();
         self.cursor += word.len();
         word
+    }
+
+    fn expect_char(&mut self, expected: char) -> Option<char> {
+        let first = self.code.chars().next();
+        if let Some(c) = first {
+            self.cursor += 1;
+            Some(c)
+        } else {
+            None
+        }
     }
 
     /// Parse the next word if it is what is expected.
@@ -471,6 +485,45 @@ fn parse_function(parser: &mut Parser) -> Function {
             }
             TokenType::Intrinsic(v) => ops.push(get_intrinsic_op(v, &token)),
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
+            TokenType::Keyword(Keyword::Cast) => {
+                let open = parser.expect_char('(');
+                let ty = parser.parse_word();
+                let close = parser.expect_char(')');
+
+                let invalid_syntax_message = &format!(
+                    "Invalid syntax for `cast` keyword
+
+{}Syntax{}: cast(<type>)",
+                    Ansi::Blue,
+                    Ansi::Reset
+                );
+                if open.is_none() || close.is_none() || ty.is_empty() {
+                    fatal_error(
+                        &token.location,
+                        CasaError::SyntaxError,
+                        &invalid_syntax_message,
+                    )
+                }
+
+                match parser.peek_char() {
+                    Some(c) if c.is_whitespace() => {
+                        let cast_with_type = format!("{}({})", &token.value, &ty);
+                        let id = OP_COUNTER.fetch_add();
+                        let cast_token = Token::new(&cast_with_type, token.ty, token.location);
+                        ops.push(Op::new(id, OpType::Cast(ty), &cast_token));
+                    }
+                    Some(c) => fatal_error(
+                        &token.location,
+                        CasaError::SyntaxError,
+                        &invalid_syntax_message,
+                    ),
+                    None => fatal_error(
+                        &token.location,
+                        CasaError::SyntaxError,
+                        &format!("End of file after parsing `cast({})` keyword", ty),
+                    ),
+                }
+            }
             TokenType::Keyword(Keyword::End) => {
                 if !is_inline {
                     ops.push(get_keyword_op(&Keyword::End, &token).unwrap());
@@ -537,6 +590,16 @@ fn parse_token_value(parser: &mut Parser) -> String {
     // Handle tokens recognized by the first character
     match first {
         None => return "".to_string(),
+        Some(c) if DELIMITERS.contains_key(&c) => {
+            if parser.expect_char(c).is_none() {
+                fatal_error(
+                    &parser.get_location(),
+                    CasaError::SyntaxError,
+                    &format!("Token cannot start with delimiter: `{}`", c),
+                )
+            }
+            c.to_string()
+        }
         Some('"') => {
             if let Some(string_literal) = parse_string_literal(parser) {
                 return string_literal;
@@ -547,11 +610,9 @@ fn parse_token_value(parser: &mut Parser) -> String {
             let error_message = format!("Invalid string literal token: '{}'", value);
             fatal_error(&location, CasaError::SyntaxError, &error_message);
         }
-        Some(_) => {} // Token was not recognized by the first character
+        // Token was not recognized by the first character
+        Some(_) => parser.parse_word().to_string(),
     }
-
-    // Handle other tokens
-    parser.parse_word().to_string()
 }
 
 /// Returns None when the parsing is finished

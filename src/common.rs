@@ -171,6 +171,7 @@ impl Token {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpType {
+    Cast(String),
     FunctionEpilogue,
     FunctionPrologue,
     Intrinsic(Intrinsic),
