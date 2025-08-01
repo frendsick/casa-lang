@@ -345,7 +345,8 @@ pushq %rsi",
 }
 
 fn get_asm_fi(op: &Op, function: &Function) -> String {
-    format!("{}_fi{}:", function.name, op.id)
+    let function_label = get_asm_label_for_gas(&function.name);
+    format!("{}_fi{}:", &function_label, op.id)
 }
 
 fn get_asm_then(op: &Op, function: &Function) -> String {
@@ -363,16 +364,18 @@ fn get_asm_then(op: &Op, function: &Function) -> String {
         )
     };
 
+    let function_label = get_asm_label_for_gas(&function.name);
     format!(
         "popq %rax
 testq %rax, %rax
 jz {}_{}{}",
-        function.name, label, related_id
+        &function_label, label, related_id
     )
 }
 
 fn get_asm_while(op: &Op, function: &Function) -> String {
-    format!("{}_while{}:", function.name, op.id)
+    let function_label = get_asm_label_for_gas(&function.name);
+    format!("{}_while{}:", &function_label, op.id)
 }
 
 fn get_asm_do(op: &Op, function: &Function) -> String {
@@ -385,11 +388,12 @@ fn get_asm_do(op: &Op, function: &Function) -> String {
         ),
     };
 
+    let function_label = get_asm_label_for_gas(&function.name);
     format!(
         "popq %rax
 testq %rax, %rax
 jz {}_done{}",
-        function.name, related_id
+        &function_label, related_id
     )
 }
 
@@ -403,10 +407,11 @@ fn get_asm_done(op: &Op, function: &Function) -> String {
         ),
     };
 
+    let function_label = get_asm_label_for_gas(&function.name);
     format!(
         "jmp {}_while{}
 {}_done{}:",
-        function.name, related_id, function.name, op.id
+        &function_label, related_id, &function_label, op.id
     )
 }
 
@@ -425,10 +430,11 @@ fn get_asm_elif(op: &Op, function: &Function) -> String {
         )
     };
 
+    let function_label = get_asm_label_for_gas(&function.name);
     format!(
         "jmp {}_{}{}
 {}_elif{}:",
-        function.name, label, related_id, function.name, op.id,
+        &function_label, label, related_id, &function_label, op.id,
     )
 }
 
@@ -442,10 +448,11 @@ fn get_asm_else(op: &Op, function: &Function) -> String {
         ),
     };
 
+    let function_label = get_asm_label_for_gas(&function.name);
     format!(
         "jmp {}_fi{}
 {}_else{}:",
-        function.name, related_id, function.name, op.id
+        &function_label, related_id, &function_label, op.id
     )
 }
 
@@ -459,7 +466,8 @@ fn get_asm_break(op: &Op, function: &Function) -> String {
         ),
     };
 
-    format!("jmp {}_done{}", function.name, related_id)
+    let function_label = get_asm_label_for_gas(&function.name);
+    format!("jmp {}_done{}", &function_label, related_id)
 }
 
 fn get_asm_continue(op: &Op, function: &Function) -> String {
@@ -472,7 +480,8 @@ fn get_asm_continue(op: &Op, function: &Function) -> String {
         ),
     };
 
-    format!("jmp {}_while{}", function.name, related_id)
+    let function_label = get_asm_label_for_gas(&function.name);
+    format!("jmp {}_while{}", &function_label, related_id)
 }
 
 fn get_asm_peek() -> &'static str {
