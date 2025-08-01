@@ -88,25 +88,30 @@ impl Parser<'_> {
 
     /// Peeks what the next parsed word would be.
     /// Parsing stops on whitespace and delimiter characters.
-    /// Returns an empty string only if the parsing is finished.
-    fn peek_word(&self) -> &str {
+    /// Returns None only if the parsing is finished.
+    fn peek_word(&self) -> Option<&str> {
+        if self.is_finished() {
+            return None;
+        }
+
         for (i, char) in self.code[self.cursor..].char_indices() {
             if char.is_whitespace() || DELIMITERS.get(&char).is_some() {
                 // Parse at least one character
                 let end_offset = if i > 0 { i } else { 1 };
-                return &self.code[self.cursor..self.cursor + end_offset];
+                return Some(&self.code[self.cursor..self.cursor + end_offset]);
             }
         }
-        &self.code[self.cursor..]
+
+        Some(&self.code[self.cursor..])
     }
 
     /// Parser the next word.
     /// Parsing stops on whitespace and delimiter characters.
     /// Returns an empty string only if the parsing is finished.
-    fn parse_word(&mut self) -> String {
-        let word = self.peek_word().to_string();
+    fn parse_word(&mut self) -> Option<String> {
+        let word = self.peek_word()?.to_string();
         self.cursor += word.len();
-        word
+        Some(word)
     }
 
     fn expect_char(&mut self, expected: char) -> Option<char> {
@@ -121,7 +126,7 @@ impl Parser<'_> {
 
     /// Parse the next word if it is what is expected.
     fn expect_word(&mut self, expected: &str) -> Option<String> {
-        let word = self.peek_word().to_string();
+        let word = self.peek_word()?.to_string();
         if word == *expected {
             self.cursor += word.len();
             Some(word)
@@ -174,7 +179,14 @@ fn parse_included_files(file: &Path) -> HashSet<PathBuf> {
                 // Parse included files recursively
                 do_parse_included_files(&include_path, included_files);
             } else {
-                let word = parser.peek_word();
+                let location = parser.get_location();
+                let Some(word) = parser.peek_word() else {
+                    fatal_error(
+                        &location,
+                        CasaError::SyntaxError,
+                        "End of file while parsing #include directive",
+                    )
+                };
                 let location = parser.get_location();
                 let error_message = format!(
                     "Invalid string literal token for #include directive: '{}'
@@ -269,12 +281,11 @@ fn parse_code_segments(parser: &mut Parser) -> Vec<Segment> {
 
 fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
     parser.skip_whitespace();
-    let keyword = parser.peek_word();
+    let keyword = parser.peek_word()?;
     match keyword {
         "const" => parse_const_segment(parser),
-        "fun" | "inline" => Some(Segment::Function(parse_function(parser))),
+        "fun" | "inline" => parse_function_segment(parser),
         "#include" => parse_include_segment(parser),
-        "" => None,
         _ => fatal_error(
             &parser.get_location(),
             CasaError::SyntaxError,
@@ -390,7 +401,12 @@ fn is_reserved_word(name: &str) -> bool {
     Intrinsic::from_str(name).is_ok() || Keyword::from_str(name).is_ok()
 }
 
-fn parse_function(parser: &mut Parser) -> Function {
+fn parse_function_segment(parser: &mut Parser) -> Option<Segment> {
+    let function = parse_function(parser)?;
+    Some(Segment::Function(function))
+}
+
+fn parse_function(parser: &mut Parser) -> Option<Function> {
     let mut ops = Vec::new();
     let error_prefix = "Error occurred while parsing a function";
 
@@ -443,7 +459,7 @@ fn parse_function(parser: &mut Parser) -> Function {
 
     // "::"
     if !parser.skip_if_startswith("::") {
-        let word = parser.peek_word();
+        let word = parser.peek_word()?;
         fatal_error(
             &parser.get_location(),
             CasaError::SyntaxError,
@@ -487,7 +503,7 @@ fn parse_function(parser: &mut Parser) -> Function {
             TokenType::Literal(v) => ops.push(get_literal_op(v, &token)),
             TokenType::Keyword(Keyword::Cast) => {
                 let open = parser.expect_char('(');
-                let ty = parser.parse_word();
+                let ty = parser.parse_word()?;
                 let close = parser.expect_char(')');
 
                 let invalid_syntax_message = &format!(
@@ -543,7 +559,7 @@ fn parse_function(parser: &mut Parser) -> Function {
         }
     }
 
-    Function {
+    Some(Function {
         name: function_name.clone(),
         signature,
         location: function_name_token.location,
@@ -551,7 +567,7 @@ fn parse_function(parser: &mut Parser) -> Function {
         is_used: function_name == "main",
         ops,
         variables,
-    }
+    })
 }
 
 fn validate_signature(function_name: &str, signature: &Signature, location: &Location) {
@@ -584,14 +600,13 @@ Expected one of the following:
     }
 }
 
-fn parse_token_value(parser: &mut Parser) -> String {
+fn parse_token_value(parser: &mut Parser) -> Option<String> {
     let rest = parser.rest();
-    let first = rest.chars().next();
+    let first = rest.chars().next()?;
 
     // Handle tokens recognized by the first character
-    match first {
-        None => return "".to_string(),
-        Some(c) if DELIMITERS.contains_key(&c) => {
+    let token_value = match first {
+        c if DELIMITERS.contains_key(&c) => {
             if parser.expect_char(c).is_none() {
                 fatal_error(
                     &parser.get_location(),
@@ -601,46 +616,52 @@ fn parse_token_value(parser: &mut Parser) -> String {
             }
             c.to_string()
         }
-        Some('"') => {
+        '"' => {
             if let Some(string_literal) = parse_string_literal(parser) {
-                return string_literal;
+                return Some(string_literal);
             }
 
             let location = parser.get_location();
-            let value = parser.parse_word();
+            let value = parser.parse_word()?;
             let error_message = format!("Invalid string literal token: '{}'", value);
             fatal_error(&location, CasaError::SyntaxError, &error_message);
         }
         // Token was not recognized by the first character
-        Some(_) => parser.parse_word().to_string(),
-    }
+        _ => parser.parse_word()?.to_string(),
+    };
+
+    Some(token_value)
 }
 
 fn parse_next_token(parser: &mut Parser) -> Token {
     let location = parser.get_location();
-    let value = parse_token_value(parser);
-    match value.as_ref() {
-        "" => Token::new("", TokenType::EndOfFile, location),
+    let Some(value) = parse_token_value(parser) else {
+        return Token::new("", TokenType::EndOfFile, location);
+    };
+
+    let token = match value {
         v if v.starts_with('"') && v.ends_with('"') => Token::new(
-            v,
+            &v,
             // Save literal value without the double quotes
             TokenType::Literal(Literal::String(v[1..v.len() - 1].to_string())),
             location,
         ),
         v if let Ok(boolean) = v.parse::<bool>() => {
-            Token::new(v, TokenType::Literal(Literal::Boolean(boolean)), location)
+            Token::new(&v, TokenType::Literal(Literal::Boolean(boolean)), location)
         }
         v if let Ok(integer) = v.parse::<i32>() => {
-            Token::new(v, TokenType::Literal(Literal::Integer(integer)), location)
+            Token::new(&v, TokenType::Literal(Literal::Integer(integer)), location)
         }
         v if let Ok(intrinsic) = v.parse::<Intrinsic>() => {
-            Token::new(v, TokenType::Intrinsic(intrinsic), location)
+            Token::new(&v, TokenType::Intrinsic(intrinsic), location)
         }
         v if let Ok(keyword) = v.parse::<Keyword>() => {
-            Token::new(v, TokenType::Keyword(keyword), location)
+            Token::new(&v, TokenType::Keyword(keyword), location)
         }
-        v => Token::new(v, TokenType::Identifier, location),
-    }
+        v => Token::new(&v, TokenType::Identifier, location),
+    };
+
+    token
 }
 
 fn parse_function_signature(
@@ -649,7 +670,7 @@ fn parse_function_signature(
     ops: &mut Vec<Op>,
     variables: &mut IndexSet<String>,
 ) -> Signature {
-    let params = parse_function_params(parser, function_name, ops, variables);
+    let params = parse_function_params(parser, function_name, ops, variables).unwrap();
     let return_types = match parser.expect_word("->") {
         Some(_) => parse_function_return_types(parser, function_name),
         None => Vec::new(),
@@ -665,7 +686,7 @@ fn parse_function_params(
     function_name: &str,
     ops: &mut Vec<Op>,
     variables: &mut IndexSet<String>,
-) -> Vec<Parameter> {
+) -> Option<Vec<Parameter>> {
     let mut params = Vec::new();
     loop {
         parser.skip_whitespace();
@@ -695,11 +716,8 @@ fn parse_function_params(
                 ty: name_or_type.value,
             },
             Some(_) => {
-                let name = name_or_type.value.clone();
-                let ty = parser.parse_word();
-                assert!(!ty.is_empty());
-
                 // Add the named parameter to variables
+                let name = name_or_type.value.clone();
                 if !variables.insert(name.clone()) {
                     fatal_error(
                         &name_or_type.location,
@@ -710,6 +728,8 @@ fn parse_function_params(
                         ),
                     )
                 }
+
+                let ty = parser.parse_word()?;
                 ops.push(Op::new(
                     OP_COUNTER.fetch_add(),
                     OpType::TakeBind,
@@ -724,7 +744,8 @@ fn parse_function_params(
         };
         params.push(param);
     }
-    params
+
+    Some(params)
 }
 
 fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<String> {
@@ -732,7 +753,7 @@ fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<
 
     parser.skip_whitespace();
     while !parser.peek_startswith("::") {
-        if parser.is_finished() {
+        let Some(return_type) = parser.parse_word() else {
             fatal_error(
                 &parser.get_location(),
                 CasaError::SyntaxError,
@@ -745,9 +766,7 @@ fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<
                     Ansi::Reset,
                 ),
             )
-        }
-
-        let return_type = parser.parse_word();
+        };
         return_types.push(return_type);
         parser.skip_whitespace();
     }
