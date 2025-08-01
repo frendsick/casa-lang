@@ -231,10 +231,12 @@ impl Op {
     }
 }
 
+type Type = String;
+
 #[derive(Debug, Clone)]
 pub struct Parameter {
     pub name: Option<String>,
-    pub ty: String,
+    pub ty: Type,
 }
 
 impl fmt::Display for Parameter {
@@ -264,7 +266,7 @@ impl ParameterSlice for [Parameter] {
 #[derive(Debug, Clone)]
 pub struct Signature {
     pub params: Vec<Parameter>,
-    pub return_types: Vec<String>,
+    pub return_types: Vec<Type>,
 }
 
 impl fmt::Display for Signature {
@@ -299,7 +301,7 @@ pub struct Function {
     pub is_inline: bool,
     pub is_used: bool,
     pub ops: Vec<Op>,
-    pub variables: IndexSet<String>,
+    pub variables: IndexSet<Type>,
 }
 
 #[derive(Debug, Clone)]
