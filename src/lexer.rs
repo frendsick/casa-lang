@@ -435,8 +435,9 @@ fn parse_function(parser: &mut Parser) -> Function {
     parser.skip_whitespace();
 
     // Function signature
+    let mut variables = IndexSet::new();
     let signature_location = parser.get_location();
-    let signature = parse_function_signature(parser, &function_name);
+    let signature = parse_function_signature(parser, &function_name, &mut ops, &mut variables);
     validate_signature(&function_name, &signature, &signature_location);
     parser.skip_whitespace();
 
@@ -451,7 +452,6 @@ fn parse_function(parser: &mut Parser) -> Function {
     }
 
     // Function tokens
-    let mut variables = IndexSet::new();
     let mut binding: Option<Binding> = None;
     loop {
         parser.skip_whitespace();
@@ -616,7 +616,6 @@ fn parse_token_value(parser: &mut Parser) -> String {
     }
 }
 
-/// Returns None when the parsing is finished
 fn parse_next_token(parser: &mut Parser) -> Token {
     let location = parser.get_location();
     let value = parse_token_value(parser);
@@ -644,8 +643,13 @@ fn parse_next_token(parser: &mut Parser) -> Token {
     }
 }
 
-fn parse_function_signature(parser: &mut Parser, function_name: &str) -> Signature {
-    let params = parse_function_params(parser, function_name);
+fn parse_function_signature(
+    parser: &mut Parser,
+    function_name: &str,
+    ops: &mut Vec<Op>,
+    variables: &mut IndexSet<String>,
+) -> Signature {
+    let params = parse_function_params(parser, function_name, ops, variables);
     let return_types = match parser.expect_word("->") {
         Some(_) => parse_function_return_types(parser, function_name),
         None => Vec::new(),
@@ -656,7 +660,12 @@ fn parse_function_signature(parser: &mut Parser, function_name: &str) -> Signatu
     }
 }
 
-fn parse_function_params(parser: &mut Parser, function_name: &str) -> Vec<Parameter> {
+fn parse_function_params(
+    parser: &mut Parser,
+    function_name: &str,
+    ops: &mut Vec<Op>,
+    variables: &mut IndexSet<String>,
+) -> Vec<Parameter> {
     let mut params = Vec::new();
     loop {
         parser.skip_whitespace();
@@ -679,17 +688,36 @@ fn parse_function_params(parser: &mut Parser, function_name: &str) -> Vec<Parame
             )
         }
 
-        let name_or_type = parser.parse_word();
+        let name_or_type = parse_next_token(parser);
         let param = match parser.expect_word(":") {
             None => Parameter {
                 name: None,
-                ty: name_or_type,
+                ty: name_or_type.value,
             },
             Some(_) => {
+                let name = name_or_type.value.clone();
                 let ty = parser.parse_word();
                 assert!(!ty.is_empty());
+
+                // Add the named parameter to variables
+                if !variables.insert(name.clone()) {
+                    fatal_error(
+                        &name_or_type.location,
+                        CasaError::DuplicateIdentifier,
+                        &format!(
+                            "Parameter with the name `{}` is already defined for function `{}`",
+                            name, function_name,
+                        ),
+                    )
+                }
+                ops.push(Op::new(
+                    OP_COUNTER.fetch_add(),
+                    OpType::TakeBind,
+                    &name_or_type,
+                ));
+
                 Parameter {
-                    name: Some(name_or_type),
+                    name: Some(name),
                     ty: ty.to_string(),
                 }
             }

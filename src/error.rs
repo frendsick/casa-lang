@@ -8,6 +8,7 @@ use strum_macros::Display;
 #[derive(Debug, Display)]
 pub enum CasaError {
     BranchModifiedStack,
+    DuplicateIdentifier,
     FileNotFound,
     InternalCompilerError,
     InvalidIdentifier,
