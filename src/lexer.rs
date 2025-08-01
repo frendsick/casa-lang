@@ -369,7 +369,7 @@ fn duplicate_global_identifier_error(
     );
     fatal_error(
         &error_location,
-        CasaError::InvalidIdentifier,
+        CasaError::DuplicateIdentifier,
         &error_message,
     );
 }
