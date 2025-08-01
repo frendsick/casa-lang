@@ -24,8 +24,7 @@ inline fun not bool -> bool :: cast(int) true cast(int) != end
 inline fun read int str int -> int :: SYS_read syscall3 end
 inline fun write int str int -> int :: SYS_write syscall3 end
 
-fun fputs int str ::
-    take fd buf bind
+fun fputs fd:int buf:str ::
     buf str.len buf fd write drop
 end
 
@@ -36,9 +35,7 @@ inline fun char.load ptr -> char :: load_byte cast(char) end
 
 inline fun str+ int str -> str :: swap cast(int) + cast(str) end
 
-fun str.len str -> int ::
-    take string bind
-
+fun str.len string:str -> int ::
     0 while string over str+ cast(ptr) char.load cast(int) NULL != do
         1 +
     done
