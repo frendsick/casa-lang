@@ -231,7 +231,7 @@ impl Op {
     }
 }
 
-type Type = String;
+pub type Type = String;
 
 #[derive(Debug, Clone)]
 pub struct Parameter {

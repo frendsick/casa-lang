@@ -177,10 +177,11 @@ fn type_check_function(function: &Function, segments: &mut [Segment]) {
 
                         // Set function as used
                         for segment in &mut *segments {
-                            if let Segment::Function(other_f) = segment
-                                && f.name == other_f.name
-                            {
-                                other_f.is_used = true;
+                            match segment {
+                                Segment::Function(other_f) if f.name == other_f.name => {
+                                    other_f.is_used = true;
+                                }
+                                _ => {}
                             }
                         }
                     }
