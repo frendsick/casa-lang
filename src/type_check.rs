@@ -384,28 +384,53 @@ fn type_check_function_call(op: &Op, type_stack: &mut Vec<TypeNode>, function: &
         _ => fatal_error(
             &op.token.location,
             CasaError::UnknownIdentifier,
-            &format!("Function '{function_name}' was not found from the global identifiers"),
+            &format!("Function `{function_name}` was not found from the global identifiers"),
         ),
     };
 
-    if type_stack.len() < function.signature.params.len() {
-        fatal_error(
-            &op.token.location,
-            CasaError::StackUnderflow,
-            &format!(
-                "Function '{}' takes {} values as parameters but there is only {} values in the stack
+    let original_stack = type_stack.clone();
+    for (i, param) in function.signature.params.iter().enumerate() {
+        let node = type_stack.pop_type(&param.ty).map_err(|error| {
+            let error_metadata = format!(
+                "Signature: {}
 
-Signature: {}",
-                function.name,
-                function.signature.params.len(),
-                type_stack.len(),
+Stack state before function call:
+{}",
                 function.signature,
-            ),
-        )
-    }
+                TypeStackSlice(&original_stack)
+            );
+            match error {
+                PopError::EmptyStack => fatal_error(
+                    &op.token.location,
+                    CasaError::StackUnderflow,
+                    &format!(
+                    "Function `{}` requires {} parameters but there is only {} values in the stack
 
-    for param in &function.signature.params {
-        type_stack.pop_type(&param.ty).unwrap();
+{}",
+                    function.name,
+                    function.signature.params.len(),
+                    original_stack.len(),
+                    error_metadata
+                ),
+                ),
+                PopError::WrongType(ty) => fatal_error(
+                    &op.token.location,
+                    CasaError::ValueError,
+                    &format!(
+                        "Wrong {}. parameter type for function: {}
+
+Expected `{}` but got `{}`
+
+{}",
+                        i + 1,
+                        function.name,
+                        param.ty,
+                        ty,
+                        error_metadata,
+                    ),
+                ),
+            }
+        });
     }
     for return_type in &function.signature.return_types {
         type_stack.push_type(return_type, &op.token.location);
