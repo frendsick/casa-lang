@@ -57,7 +57,7 @@ ret",
 
     for segment in segments {
         match segment {
-            Segment::Function(f) if f.is_used => {
+            Segment::Function(f) if *f.is_used.read().unwrap() => {
                 asm_blocks.push(get_asm_for_function(f, &file_numbers))
             }
             _ => {}
@@ -126,7 +126,7 @@ fn get_asm_data_section(segments: &[Segment]) -> String {
                     asm_blocks.push(string_variable);
                 }
             }
-            Segment::Function(function) if function.is_used => {
+            Segment::Function(function) if *function.is_used.read().unwrap() => {
                 let function_entries = get_asm_data_section_entries_function(function);
                 if !function_entries.is_empty() {
                     asm_blocks.push(function_entries);

@@ -4,8 +4,8 @@ use phf::phf_map;
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock, RwLock};
 use strum_macros::{Display, EnumString};
 
 // A table of identifiers declared at the global scope (e.g., functions)
@@ -299,7 +299,7 @@ pub struct Function {
     pub signature: Signature,
     pub location: Location,
     pub is_inline: bool,
-    pub is_used: bool,
+    pub is_used: Arc<RwLock<bool>>,
     pub ops: Vec<Op>,
     pub variables: IndexSet<Type>,
 }

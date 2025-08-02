@@ -31,7 +31,7 @@ fn main() -> io::Result<()> {
     let segments = lexer::parse_segments_from_included_files(&input_path);
 
     print_if_verbose("Type checking the program", &args);
-    let segments = type_check_program(&segments);
+    type_check_program(&segments);
 
     print_if_verbose("Generating assembly code", &args);
     let assembly_code = asm::generate_assembly_code(&segments);

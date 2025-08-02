@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::{Arc, RwLock};
 
 static OP_COUNTER: Counter = Counter::new();
 
@@ -586,7 +587,7 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
         signature,
         location: function_name_token.location,
         is_inline,
-        is_used: function_name == "main",
+        is_used: Arc::new(RwLock::new(function_name == "main")).into(),
         ops,
         variables,
     })
