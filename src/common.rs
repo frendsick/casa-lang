@@ -231,7 +231,7 @@ impl Op {
     }
 }
 
-type Type = String;
+pub type Type = String;
 
 #[derive(Debug, Clone)]
 pub struct Parameter {
@@ -305,9 +305,16 @@ pub struct Function {
 }
 
 #[derive(Debug, Clone)]
+pub struct Implementation {
+    pub ty: Type,
+    pub methods: Vec<Function>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Segment {
     Constant(Constant),
     Function(Function),
+    Implementation(Implementation),
     Include(PathBuf),
 }
 

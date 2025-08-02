@@ -129,6 +129,11 @@ pub fn type_check_program(segments: &[Segment]) -> Vec<Segment> {
             Segment::Function(f) => {
                 type_check_function(&f, &mut new_segments);
             }
+            Segment::Implementation(implementation) => {
+                for method in &implementation.methods {
+                    type_check_function(&method, &mut new_segments);
+                }
+            }
             Segment::Constant(_) | Segment::Include(_) => {}
         }
     }
@@ -177,10 +182,18 @@ fn type_check_function(function: &Function, segments: &mut [Segment]) {
 
                         // Set function as used
                         for segment in &mut *segments {
-                            if let Segment::Function(other_f) = segment
-                                && f.name == other_f.name
-                            {
-                                other_f.is_used = true;
+                            match segment {
+                                Segment::Function(other_f) if f.name == other_f.name => {
+                                    other_f.is_used = true;
+                                }
+                                Segment::Implementation(implementation) => {
+                                    for method in &mut *implementation.methods {
+                                        if f.name == method.name {
+                                            method.is_used = true;
+                                        }
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                     }

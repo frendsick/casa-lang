@@ -60,6 +60,13 @@ ret",
             Segment::Function(f) if f.is_used => {
                 asm_blocks.push(get_asm_for_function(f, &file_numbers))
             }
+            Segment::Implementation(implementation) => {
+                for method in &implementation.methods {
+                    if method.is_used {
+                        asm_blocks.push(get_asm_for_function(method, &file_numbers))
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -82,6 +89,14 @@ fn get_asm_file_numbers(segments: &[Segment]) -> HashMap<String, usize> {
                 let file = f.location.file.to_string_lossy().to_string();
                 if !file_numbers.contains_key(&file) {
                     file_numbers.insert(file, file_numbers.len());
+                }
+            }
+            Segment::Implementation(implementation) => {
+                for method in &implementation.methods {
+                    let file = method.location.file.to_string_lossy().to_string();
+                    if !file_numbers.contains_key(&file) {
+                        file_numbers.insert(file, file_numbers.len());
+                    }
                 }
             }
             Segment::Constant(_) | Segment::Include(_) => {}
@@ -130,6 +145,18 @@ fn get_asm_data_section(segments: &[Segment]) -> String {
                 let function_entries = get_asm_data_section_entries_function(function);
                 if !function_entries.is_empty() {
                     asm_blocks.push(function_entries);
+                }
+            }
+            Segment::Implementation(implementation) => {
+                for method in &implementation.methods {
+                    if !method.is_used {
+                        continue;
+                    }
+
+                    let function_entries = get_asm_data_section_entries_function(method);
+                    if !function_entries.is_empty() {
+                        asm_blocks.push(function_entries);
+                    }
                 }
             }
             _ => {}

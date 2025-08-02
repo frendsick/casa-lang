@@ -1,8 +1,8 @@
 use crate::canonicalize_path_must_exist;
 use crate::common::{
     Ansi, Constant, Counter, DELIMITERS, Function, GLOBAL_IDENTIFIERS, Identifier, IdentifierTable,
-    Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment, Signature, Token,
-    TokenType,
+    Implementation, Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment,
+    Signature, Token, TokenType, Type,
 };
 use crate::error::{CasaError, fatal_error, fatal_error_short};
 use indexmap::IndexSet;
@@ -286,6 +286,7 @@ fn parse_next_segment(parser: &mut Parser) -> Option<Segment> {
         "const" => parse_const_segment(parser),
         "fun" | "inline" => parse_function_segment(parser),
         "#include" => parse_include_segment(parser),
+        "impl" => parse_implementation_segment(parser),
         _ => fatal_error(
             &parser.get_location(),
             CasaError::SyntaxError,
@@ -341,6 +342,50 @@ fn parse_include_segment(parser: &mut Parser) -> Option<Segment> {
     Some(Segment::Include(include_path))
 }
 
+fn parse_implementation_segment(parser: &mut Parser) -> Option<Segment> {
+    let mut methods: Vec<Function> = Vec::new();
+
+    parser.expect_word("impl")?;
+    parser.skip_whitespace();
+
+    let type_token = parse_next_token(parser);
+    let ty = type_token.value;
+    parser.skip_whitespace();
+
+    loop {
+        match parser.peek_word() {
+            Some("end") => {
+                parser.expect_word("end");
+                break;
+            }
+            Some("fun") => methods.push(parse_function(parser, Some(ty.clone()))?),
+            Some(word) => fatal_error(
+                &parser.get_location(),
+                CasaError::SyntaxError,
+                &format!(
+                    "Unexpected token while parsing impl block for `{}`: {}
+
+{}Hint{}: Define another method with `fun` or end the impl block with `end`",
+                    ty,
+                    word,
+                    Ansi::Blue,
+                    Ansi::Reset,
+                ),
+            ),
+            None => fatal_error(
+                &parser.get_location(),
+                CasaError::SyntaxError,
+                &format!("End of file while parsing structure `{}`", &ty),
+            ),
+        }
+
+        parser.skip_whitespace();
+    }
+
+    let structure = Implementation { ty, methods };
+    Some(Segment::Implementation(structure))
+}
+
 fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
     let mut global_identifiers: IdentifierTable = HashMap::new();
     for segment in segments {
@@ -357,6 +402,19 @@ fn get_global_identifiers(segments: &[Segment]) -> IdentifierTable {
                     global_identifiers.insert(f.name.clone(), Identifier::Function(f.clone()))
                 {
                     duplicate_global_identifier_error(&f.name, identifier, &f.location)
+                }
+            }
+            Segment::Implementation(implementation) => {
+                for method in &implementation.methods {
+                    if let Some(identifier) = global_identifiers
+                        .insert(method.name.clone(), Identifier::Function(method.clone()))
+                    {
+                        duplicate_global_identifier_error(
+                            &method.name,
+                            identifier,
+                            &method.location,
+                        )
+                    }
                 }
             }
             Segment::Include(_) => {}
@@ -402,11 +460,11 @@ fn is_reserved_word(name: &str) -> bool {
 }
 
 fn parse_function_segment(parser: &mut Parser) -> Option<Segment> {
-    let function = parse_function(parser)?;
+    let function = parse_function(parser, None)?;
     Some(Segment::Function(function))
 }
 
-fn parse_function(parser: &mut Parser) -> Option<Function> {
+fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Function> {
     let mut ops = Vec::new();
     let error_prefix = "Error occurred while parsing a function";
 
@@ -437,7 +495,11 @@ fn parse_function(parser: &mut Parser) -> Option<Function> {
 
     // Function name
     let function_name_token = parse_next_token(parser);
-    let function_name = function_name_token.value;
+    let function_name = match self_type {
+        Some(ref ty) => format!("{}.{}", ty, function_name_token.value),
+        None => function_name_token.value,
+    };
+
     if is_reserved_word(&function_name) {
         fatal_error(
             &function_name_token.location,
@@ -453,7 +515,13 @@ fn parse_function(parser: &mut Parser) -> Option<Function> {
     // Function signature
     let mut variables = IndexSet::new();
     let signature_location = parser.get_location();
-    let signature = parse_function_signature(parser, &function_name, &mut ops, &mut variables);
+    let signature = parse_function_signature(
+        parser,
+        &function_name,
+        &mut ops,
+        &mut variables,
+        self_type.clone(),
+    );
     validate_signature(&function_name, &signature, &signature_location);
     parser.skip_whitespace();
 
@@ -669,8 +737,9 @@ fn parse_function_signature(
     function_name: &str,
     ops: &mut Vec<Op>,
     variables: &mut IndexSet<String>,
+    self_type: Option<Type>,
 ) -> Signature {
-    let params = parse_function_params(parser, function_name, ops, variables).unwrap();
+    let params = parse_function_params(parser, function_name, ops, variables, self_type).unwrap();
     let return_types = match parser.expect_word("->") {
         Some(_) => parse_function_return_types(parser, function_name),
         None => Vec::new(),
@@ -686,8 +755,10 @@ fn parse_function_params(
     function_name: &str,
     ops: &mut Vec<Op>,
     variables: &mut IndexSet<String>,
+    self_type: Option<Type>,
 ) -> Option<Vec<Parameter>> {
     let mut params = Vec::new();
+
     loop {
         parser.skip_whitespace();
         if parser.peek_startswith("->") || parser.peek_startswith("::") {
@@ -710,39 +781,68 @@ fn parse_function_params(
         }
 
         let name_or_type = parse_next_token(parser);
+        let is_self = self_type.is_some() && name_or_type.value == "self";
+        if is_self && let Some(ref ty) = self_type {
+            if params.is_empty() && parser.peek_char() == Some(':') {
+                fatal_error(
+                    &name_or_type.location,
+                    CasaError::SyntaxError,
+                    &format!(
+                        "Unexpected colon after `self` parameter.
+
+{}Hint{}: The `self` parameter implicitly has the type of the related struct `{}`",
+                        Ansi::Blue,
+                        Ansi::Reset,
+                        ty,
+                    ),
+                );
+            } else if !params.is_empty() {
+                fatal_error(
+                    &name_or_type.location,
+                    CasaError::InvalidIdentifier,
+                    &format!(
+                        "The `self` parameter should be the first parameter but is found at the {}. position of the `{}` function",
+                        params.len() + 1,
+                        function_name,
+                    ),
+                )
+            }
+        }
+
         let param = match parser.expect_word(":") {
+            None if is_self => Parameter {
+                name: Some("self".to_string()),
+                ty: self_type.clone().expect("Type of `self` is defined"),
+            },
             None => Parameter {
                 name: None,
-                ty: name_or_type.value,
+                ty: name_or_type.value.clone(),
             },
-            Some(_) => {
-                // Add the named parameter to variables
-                let name = name_or_type.value.clone();
-                if !variables.insert(name.clone()) {
-                    fatal_error(
-                        &name_or_type.location,
-                        CasaError::DuplicateIdentifier,
-                        &format!(
-                            "Parameter with the name `{}` is already defined for function `{}`",
-                            name, function_name,
-                        ),
-                    )
-                }
-
-                let ty = parser.parse_word()?;
-                ops.push(Op::new(
-                    OP_COUNTER.fetch_add(),
-                    OpType::TakeBind,
-                    &name_or_type,
-                ));
-
-                Parameter {
-                    name: Some(name),
-                    ty: ty.to_string(),
-                }
-            }
+            Some(_) => Parameter {
+                name: Some(name_or_type.value.clone()),
+                ty: parser.parse_word()?,
+            },
         };
-        params.push(param);
+        params.push(param.clone());
+
+        // Add the named parameter to variables
+        if let Some(name) = param.name {
+            if !variables.insert(name.clone()) {
+                fatal_error(
+                    &name_or_type.location,
+                    CasaError::DuplicateIdentifier,
+                    &format!(
+                        "Parameter with the name `{}` is already defined for function `{}`",
+                        name, function_name,
+                    ),
+                )
+            }
+            ops.push(Op::new(
+                OP_COUNTER.fetch_add(),
+                OpType::TakeBind,
+                &name_or_type,
+            ));
+        }
     }
 
     Some(params)
