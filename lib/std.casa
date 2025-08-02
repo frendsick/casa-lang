@@ -31,14 +31,18 @@ end
 inline fun puts str :: stdout fputs end
 inline fun eputs str :: stderr fputs end
 
-inline fun char.load ptr -> char :: load_byte cast(char) end
-
 inline fun str+ int str -> str :: swap cast(int) + cast(str) end
 
-fun str.len string:str -> int ::
-    0 while string over str+ cast(ptr) char.load cast(int) NULL != do
-        1 +
-    done
+impl char
+    inline fun load ptr -> char :: load_byte cast(char) end
+end
+
+impl str
+    fun len self -> int ::
+        0 while self over str+ cast(ptr) char.load cast(int) NULL != do
+            1 +
+        done
+    end
 end
 
 const SYS_read 0 end

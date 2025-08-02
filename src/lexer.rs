@@ -452,6 +452,18 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
     let function_name_token = parse_next_token(parser);
     let function_name = match self_type {
         Some(ref ty) => format!("{}.{}", ty, function_name_token.value),
+        None if function_name_token.value.contains('.') => fatal_error(
+            &function_name_token.location,
+            CasaError::InvalidIdentifier,
+            &format!(
+                "Invalid function name: {}
+
+{}Hint{}: The '.' character is reserved for `impl` methods",
+                function_name_token.value,
+                Ansi::Blue,
+                Ansi::Reset,
+            ),
+        ),
         None => function_name_token.value,
     };
 
@@ -829,24 +841,41 @@ fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<
 }
 
 fn get_identifier_op(token: &Token, binding: &Option<Binding>) -> Op {
+    let identifier = &token.value;
+
     let op_type = match binding {
         Some(Binding::Peek) => OpType::PeekBind,
         Some(Binding::Take) => OpType::TakeBind,
         None => OpType::Identifier,
     };
 
-    // Functions cannot shadow reserved words
-    if (op_type == OpType::PeekBind || op_type == OpType::TakeBind)
-        && is_reserved_word(&token.value)
-    {
-        fatal_error(
-            &token.location,
-            CasaError::InvalidIdentifier,
-            &format!(
-                "Cannot use reserved word as a function name: `{}`",
-                token.value
-            ),
-        );
+    if op_type == OpType::PeekBind || op_type == OpType::TakeBind {
+        // Functions cannot shadow reserved words
+        if is_reserved_word(&identifier) {
+            fatal_error(
+                &token.location,
+                CasaError::InvalidIdentifier,
+                &format!(
+                    "Cannot use reserved word as a function name: `{}`",
+                    &identifier
+                ),
+            );
+        }
+
+        if identifier.contains('.') {
+            fatal_error(
+                &token.location,
+                CasaError::InvalidIdentifier,
+                &format!(
+                    "Invalid variable name: {}
+
+{}Hint{}: The '.' character is reserved for `impl` methods",
+                    identifier,
+                    Ansi::Blue,
+                    Ansi::Reset,
+                ),
+            );
+        }
     }
 
     Op::new(OP_COUNTER.fetch_add(), op_type, token)
