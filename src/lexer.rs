@@ -1,8 +1,8 @@
 use crate::canonicalize_path_must_exist;
 use crate::common::{
-    Ansi, Constant, Counter, DELIMITERS, Function, GLOBAL_IDENTIFIERS, Identifier, IdentifierTable,
-    Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment, Signature, Token,
-    TokenType, Type,
+    Ansi, Constant, Counter, DELIMITERS, Delimiter, Function, GLOBAL_IDENTIFIERS, Identifier,
+    IdentifierTable, Intrinsic, Keyword, Literal, Location, Op, OpType, Parameter, Segment,
+    Signature, Token, TokenType, Type,
 };
 use crate::error::{CasaError, fatal_error, fatal_error_short};
 use indexmap::IndexSet;
@@ -504,6 +504,7 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
 
     // Function tokens
     let mut binding: Option<Binding> = None;
+    let mut is_prev_dot = false;
     loop {
         parser.skip_whitespace();
         let token = parse_next_token(parser);
@@ -515,6 +516,9 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
                     error_prefix, function_name
                 );
                 fatal_error(&token.location, CasaError::SyntaxError, &error_message);
+            }
+            TokenType::Identifier if is_prev_dot => {
+                ops.push(Op::new(OP_COUNTER.fetch_add(), OpType::MethodCall, &token));
             }
             TokenType::Identifier => {
                 ops.push(get_identifier_op(&token, &binding));
@@ -574,7 +578,8 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
                     Some(c) if c.is_whitespace() => {
                         let cast_with_type = format!("{}({})", &token.value, &ty);
                         let id = OP_COUNTER.fetch_add();
-                        let cast_token = Token::new(&cast_with_type, token.ty, token.location);
+                        let cast_token =
+                            Token::new(&cast_with_type, token.ty.clone(), token.location);
                         ops.push(Op::new(id, OpType::Cast(ty), &cast_token));
                     }
                     Some(c) => fatal_error(
@@ -605,7 +610,10 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
                     _ => {}
                 }
             }
+            TokenType::Method => todo!(),
         }
+
+        is_prev_dot = token.ty == TokenType::Delimiter(Delimiter::Dot);
     }
 
     Some(Function {
@@ -616,6 +624,7 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
         is_used: Arc::new(RwLock::new(function_name == "main")).into(),
         ops,
         variables,
+        method_type: Arc::new(RwLock::new(None)),
     })
 }
 
@@ -695,6 +704,9 @@ fn parse_next_token(parser: &mut Parser) -> Token {
             TokenType::Literal(Literal::String(v[1..v.len() - 1].to_string())),
             location,
         ),
+        v if let Some(delimiter) = get_delimiter(&v) => {
+            Token::new(&v, TokenType::Delimiter(delimiter.clone()), location)
+        }
         v if let Ok(boolean) = v.parse::<bool>() => {
             Token::new(&v, TokenType::Literal(Literal::Boolean(boolean)), location)
         }
@@ -954,5 +966,14 @@ fn parse_string_literal(parser: &mut Parser) -> Option<String> {
         }
     }
 
+    None
+}
+
+pub fn get_delimiter(s: &str) -> Option<&'static Delimiter> {
+    if let Some(c) = s.chars().next() {
+        if s.len() == c.len_utf8() {
+            return DELIMITERS.get(&c);
+        }
+    }
     None
 }

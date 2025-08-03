@@ -13,9 +13,10 @@ pub type IdentifierTable = HashMap<String, Identifier>;
 pub static GLOBAL_IDENTIFIERS: OnceLock<IdentifierTable> = OnceLock::new();
 
 pub static DELIMITERS: phf::Map<char, Delimiter> = phf_map! {
-    ':' => Delimiter::Colon,
-    '(' => Delimiter::OpenParen,
     ')' => Delimiter::CloseParen,
+    ':' => Delimiter::Colon,
+    '.' => Delimiter::Dot,
+    '(' => Delimiter::OpenParen,
 };
 
 #[derive(Display)]
@@ -46,12 +47,14 @@ pub enum TokenType {
     Intrinsic(Intrinsic),
     Keyword(Keyword),
     Literal(Literal),
+    Method,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Delimiter {
     CloseParen,
     Colon,
+    Dot,
     OpenParen,
 }
 
@@ -184,6 +187,7 @@ pub enum OpType {
     FunctionEpilogue,
     FunctionPrologue,
     Intrinsic(Intrinsic),
+    MethodCall,
     PushBool,
     PushInt,
     PushStr,
@@ -219,6 +223,7 @@ pub struct Op {
     pub id: usize,
     pub ty: OpType,
     pub token: Token,
+    pub receiver: Arc<RwLock<Option<Type>>>,
 }
 
 impl Op {
@@ -227,6 +232,7 @@ impl Op {
             id,
             ty,
             token: token.clone(),
+            receiver: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -302,6 +308,7 @@ pub struct Function {
     pub is_used: Arc<RwLock<bool>>,
     pub ops: Vec<Op>,
     pub variables: IndexSet<Type>,
+    pub method_type: Arc<RwLock<Option<String>>>,
 }
 
 #[derive(Debug, Clone)]

@@ -224,6 +224,12 @@ fn get_asm_code_for_op(
         }
         OpType::If => None,
         OpType::Intrinsic(intrinsic) => Some(get_asm_intrinsic(intrinsic)),
+        OpType::MethodCall => {
+            #[rustfmt::skip]
+            let receiver = op.receiver.read().unwrap().clone().expect("Method receiver type");
+            let function_name = format!("{}.{}", receiver, op.token.value);
+            Some(get_asm_function_call(&function_name))
+        }
         OpType::Peek => Some(get_asm_peek().to_string()),
         OpType::PeekBind => Some(get_asm_peek_bind(op, function)),
         OpType::PushBool => match op.token.ty {

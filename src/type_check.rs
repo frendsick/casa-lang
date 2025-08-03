@@ -134,14 +134,14 @@ pub fn type_check_program(segments: &[Segment]) {
     for segment in segments {
         match segment {
             Segment::Function(f) => {
-                type_check_function(&f, segments);
+                type_check_function(&f);
             }
             Segment::Constant(_) | Segment::Include(_) => {}
         }
     }
 }
 
-fn type_check_function(function: &Function, segments: &[Segment]) {
+fn type_check_function(function: &Function) {
     let params = &function.signature.params;
     let param_types_rev: Vec<String> = params.get_types().iter().rev().cloned().collect();
     let mut type_stack = Vec::from_types(&param_types_rev, &function.location);
@@ -180,17 +180,6 @@ fn type_check_function(function: &Function, segments: &[Segment]) {
                     },
                     Some(Identifier::Function(f)) => {
                         type_check_function_call(op, &mut type_stack, f);
-
-                        // Set function as used
-                        for segment in segments {
-                            match segment {
-                                Segment::Function(other_f) if f.name == other_f.name => {
-                                    let mut is_used = other_f.is_used.write().unwrap();
-                                    *is_used = true;
-                                }
-                                _ => {}
-                            }
-                        }
                     }
                     None => match variables.get(&op.token.value) {
                         Some(ty) => type_stack.push_type(ty, &op.token.location),
@@ -206,6 +195,7 @@ fn type_check_function(function: &Function, segments: &[Segment]) {
                 branched_stacks.push(BranchedStack::new(BranchType::IfBlock, &type_stack))
             }
             OpType::Intrinsic(intrinsic) => type_check_intrinsic(op, &mut type_stack, intrinsic),
+            OpType::MethodCall => type_check_method_call(op, &mut type_stack),
             OpType::Peek => {}
             OpType::PeekBind => {
                 type_check_peek_bind(op, &mut type_stack, &mut variables, peek_index);
@@ -384,18 +374,31 @@ fn type_check_fi(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedSt
     type_check_stack_state(op, type_stack, branched_stacks, BranchType::IfBlock);
 }
 
-fn type_check_function_call(op: &Op, type_stack: &mut Vec<TypeNode>, function: &Function) {
-    let function_name = &op.token.value;
+fn type_check_method_call(op: &Op, type_stack: &mut Vec<TypeNode>) {
+    let method_name = &op.token.value;
+
+    // Define method receiver from the topmost item in the stack
+    let receiver = type_stack.peek_stack().expect("Method receiver");
+    let mut receiver_ref = op.receiver.write().unwrap();
+    *receiver_ref = Some(receiver.ty.clone());
+
+    let function_name = format!("{}.{}", receiver.ty, method_name);
     let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
-    let function = match global_identifiers.get(function_name) {
-        Some(Identifier::Function(function)) => function,
-        _ => fatal_error(
+    let Some(Identifier::Function(function)) = global_identifiers.get(&function_name) else {
+        fatal_error(
             &op.token.location,
             CasaError::UnknownIdentifier,
-            &format!("Function `{function_name}` was not found from the global identifiers"),
-        ),
+            &format!(
+                "Function is not defined in the global identifiers: {}",
+                function_name
+            ),
+        );
     };
 
+    type_check_function_call(op, type_stack, function);
+}
+
+fn type_check_function_call(op: &Op, type_stack: &mut Vec<TypeNode>, function: &Function) {
     let original_stack = type_stack.clone();
     for (i, param) in function.signature.params.iter().enumerate() {
         let node = type_stack.pop_type(&param.ty).map_err(|error| {
@@ -443,6 +446,10 @@ Expected `{}` but got `{}`
     for return_type in &function.signature.return_types {
         type_stack.push_type(return_type, &op.token.location);
     }
+
+    // Mark the function as used
+    let mut is_used = function.is_used.write().unwrap();
+    *is_used = true;
 }
 
 fn type_check_push_bind(
