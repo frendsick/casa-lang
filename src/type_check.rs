@@ -23,7 +23,7 @@ trait TypeStack {
     fn from_types(types: &[String], location: &Location) -> Vec<TypeNode>;
     fn peek_nth(&self, n: usize) -> Option<&TypeNode>;
     fn peek_stack(&self) -> Option<&TypeNode>;
-    fn peek_type(&self, expected_type: &str) -> Result<&TypeNode, PopError>;
+    fn peek_type(&self, expected_type: &str) -> Result<TypeNode, PopError>;
     fn pop_stack(&mut self) -> Option<TypeNode>;
     fn pop_type(&mut self, expected_type: &str) -> Result<TypeNode, PopError>;
     fn push_node(&mut self, node: &TypeNode);
@@ -49,9 +49,13 @@ impl TypeStack for Vec<TypeNode> {
         self.last()
     }
 
-    fn peek_type(&self, expected_type: &str) -> Result<&TypeNode, PopError> {
+    fn peek_type(&self, expected_type: &str) -> Result<TypeNode, PopError> {
         match self.peek_stack() {
-            Some(node) if node.ty == expected_type => Ok(node),
+            Some(node) if node.ty == expected_type => Ok(node.clone()),
+            Some(node) if node.ty == "any" => Ok(TypeNode {
+                ty: node.ty.clone(),
+                location: node.location.clone(),
+            }),
             Some(node) => Err(PopError::WrongType(node.ty.clone())),
             None => Err(PopError::EmptyStack),
         }
@@ -64,6 +68,10 @@ impl TypeStack for Vec<TypeNode> {
     fn pop_type(&mut self, expected_type: &str) -> Result<TypeNode, PopError> {
         match self.pop_stack() {
             Some(node) if node.ty == expected_type => Ok(node),
+            Some(node) if node.ty == "any" => Ok(TypeNode {
+                ty: node.ty,
+                location: node.location,
+            }),
             Some(node) => Err(PopError::WrongType(node.ty)),
             None => Err(PopError::EmptyStack),
         }
