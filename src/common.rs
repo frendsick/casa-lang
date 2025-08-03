@@ -47,7 +47,6 @@ pub enum TokenType {
     Intrinsic(Intrinsic),
     Keyword(Keyword),
     Literal(Literal),
-    Method,
 }
 
 #[derive(Debug, Clone, PartialEq)]

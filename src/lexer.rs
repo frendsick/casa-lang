@@ -520,9 +520,17 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
                 ops.push(Op::new(OP_COUNTER.fetch_add(), OpType::MethodCall, &token));
             }
             TokenType::Identifier => {
-                ops.push(get_identifier_op(&token, &binding));
-                if binding.is_some() {
-                    variables.insert(token.value);
+                // Methods can be called like `<type>::<method>`
+                if parser.skip_if_startswith("::") {
+                    let method_name = parser.parse_word()?;
+                    let value = format!("{}::{}", &token.value, method_name);
+                    let method_token = Token::new(&value, TokenType::Identifier, token.location);
+                    ops.push(get_identifier_op(&method_token, &binding));
+                } else {
+                    ops.push(get_identifier_op(&token, &binding));
+                    if binding.is_some() {
+                        variables.insert(token.value);
+                    }
                 }
             }
             TokenType::Keyword(Keyword::Bind) => binding = None,
@@ -609,7 +617,6 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
                     _ => {}
                 }
             }
-            TokenType::Method => todo!(),
         }
 
         is_prev_dot = token.ty == TokenType::Delimiter(Delimiter::Dot);
@@ -975,4 +982,13 @@ pub fn get_delimiter(s: &str) -> Option<&'static Delimiter> {
         }
     }
     None
+}
+
+pub fn normalize_identifier(identifier: &str) -> String {
+    // Methods can be called like `<type>::<method>`
+    if let Some((ty, method)) = identifier.split_once("::") {
+        format!("{}.{}", ty, method)
+    } else {
+        identifier.to_string()
+    }
 }

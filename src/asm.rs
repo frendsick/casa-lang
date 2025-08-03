@@ -4,7 +4,7 @@ use crate::common::{
     get_related_while_id,
 };
 use crate::error::{CasaError, fatal_error};
-use crate::lexer::quote;
+use crate::lexer::{normalize_identifier, quote};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use itertools::Itertools;
@@ -194,13 +194,14 @@ fn get_asm_code_for_op(
             false => Some(get_asm_function_prologue(function)),
         },
         OpType::Identifier => {
+            let identifier = normalize_identifier(&op.token.value);
             let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
-            match global_identifiers.get(&op.token.value) {
+            match global_identifiers.get(&identifier) {
                 Some(Identifier::Constant(c)) => match &c.literal {
                     Literal::Boolean(b) => Some(get_asm_push_bool(*b)),
                     Literal::Integer(i) => Some(get_asm_push_int(*i)),
                     Literal::String(_) => {
-                        let variable_name = get_asm_string_variable_name("const", &op.token.value);
+                        let variable_name = get_asm_string_variable_name("const", &identifier);
                         Some(get_asm_push_str(&variable_name))
                     }
                 },
@@ -208,7 +209,7 @@ fn get_asm_code_for_op(
                     false => Some(get_asm_function_call(&f.name)),
                     true => {
                         let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
-                        let called_function = match global_identifiers.get(&op.token.value) {
+                        let called_function = match global_identifiers.get(&identifier) {
                             Some(Identifier::Function(f)) => f,
                             _ => fatal_error(
                                 &op.token.location,

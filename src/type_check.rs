@@ -3,6 +3,7 @@ use crate::common::{
     ParameterSlice, Segment,
 };
 use crate::error::{CasaError, fatal_error};
+use crate::lexer::normalize_identifier;
 use indexmap::IndexMap;
 use std::fmt;
 use strum_macros::Display;
@@ -170,9 +171,9 @@ fn type_check_function(function: &Function) {
             OpType::FunctionEpilogue => {}
             OpType::FunctionPrologue => {}
             OpType::Identifier => {
-                // Global identifiers
+                let identifier = normalize_identifier(&op.token.value);
                 let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
-                match global_identifiers.get(&op.token.value) {
+                match global_identifiers.get(&identifier) {
                     Some(Identifier::Constant(c)) => match &c.literal {
                         Literal::Boolean(b) => type_stack.push_type("bool", &op.token.location),
                         Literal::Integer(i) => type_stack.push_type("int", &op.token.location),
@@ -181,7 +182,7 @@ fn type_check_function(function: &Function) {
                     Some(Identifier::Function(f)) => {
                         type_check_function_call(op, &mut type_stack, f);
                     }
-                    None => match variables.get(&op.token.value) {
+                    None => match variables.get(&identifier) {
                         Some(ty) => type_stack.push_type(ty, &op.token.location),
                         None => fatal_error(
                             &op.token.location,
@@ -375,7 +376,7 @@ fn type_check_fi(op: &Op, type_stack: &[TypeNode], branched_stacks: &[BranchedSt
 }
 
 fn type_check_method_call(op: &Op, type_stack: &mut Vec<TypeNode>) {
-    let method_name = &op.token.value;
+    let method_name = normalize_identifier(&op.token.value);
 
     // Define method receiver from the topmost item in the stack
     let receiver = type_stack.peek_stack().expect("Method receiver");
