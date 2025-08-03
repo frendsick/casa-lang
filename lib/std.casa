@@ -23,6 +23,7 @@ inline fun not bool -> bool : cast(int) true cast(int) != end
 
 inline fun read int str int -> int : SYS_read syscall3 end
 inline fun write int str int -> int : SYS_write syscall3 end
+inline fun exit int :: SYS_exit syscall1 drop end
 
 fun fputs fd:int buf:str :
     buf.len buf fd write drop
@@ -51,3 +52,4 @@ const SYS_read 0 end
 const SYS_write 1 end
 const SYS_open 2 end
 const SYS_close 3 end
+const SYS_exit 60 end
