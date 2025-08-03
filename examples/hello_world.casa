@@ -1,5 +1,5 @@
 #include "../lib/std.casa"
 
-fun main ::
+fun main:
     "Hello, world!" puts
 end

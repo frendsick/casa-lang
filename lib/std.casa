@@ -4,37 +4,37 @@ const stdin  0 end
 const stdout 1 end
 const stderr 2 end
 
-inline fun + int int -> int :: add end
-inline fun - int int -> int :: sub end
-inline fun * int int -> int :: mul end
-inline fun / int int -> int :: div end
-inline fun % int int -> int :: mod end
+inline fun + int int -> int : add end
+inline fun - int int -> int : sub end
+inline fun * int int -> int : mul end
+inline fun / int int -> int : div end
+inline fun % int int -> int : mod end
 
-inline fun ==   int int   -> bool :: eq  end
-inline fun !=   int int   -> bool :: ne  end
-inline fun >    int int   -> bool :: gt  end
-inline fun >=   int int   -> bool :: ge  end
-inline fun <    int int   -> bool :: lt  end
-inline fun <=   int int   -> bool :: le  end
-inline fun &&   bool bool -> bool :: and end
-inline fun ||   bool bool -> bool :: or  end
+inline fun ==   int int   -> bool : eq  end
+inline fun !=   int int   -> bool : ne  end
+inline fun >    int int   -> bool : gt  end
+inline fun >=   int int   -> bool : ge  end
+inline fun <    int int   -> bool : lt  end
+inline fun <=   int int   -> bool : le  end
+inline fun &&   bool bool -> bool : and end
+inline fun ||   bool bool -> bool : or  end
 
-inline fun not bool -> bool :: cast(int) true cast(int) != end
+inline fun not bool -> bool : cast(int) true cast(int) != end
 
-inline fun read int str int -> int :: SYS_read syscall3 end
-inline fun write int str int -> int :: SYS_write syscall3 end
+inline fun read int str int -> int : SYS_read syscall3 end
+inline fun write int str int -> int : SYS_write syscall3 end
 
-fun fputs fd:int buf:str ::
+fun fputs fd:int buf:str :
     buf.len buf fd write drop
 end
 
-inline fun puts str :: stdout fputs end
-inline fun eputs str :: stderr fputs end
+inline fun puts str : stdout fputs end
+inline fun eputs str : stderr fputs end
 
-inline fun str+ int str -> str :: swap cast(int) + cast(str) end
+inline fun str+ int str -> str : swap cast(int) + cast(str) end
 
 impl str
-    fun len self -> int ::
+    fun len self -> int :
         0 while self over str+ cast(ptr) load_byte NULL != do
             1 +
         done

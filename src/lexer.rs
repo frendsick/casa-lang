@@ -492,8 +492,7 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
     validate_signature(&function_name, &signature, &signature_location);
     parser.skip_whitespace();
 
-    // "::"
-    if !parser.skip_if_startswith("::") {
+    if parser.expect_char(':').is_none() {
         let word = parser.peek_word()?;
         fatal_error(
             &parser.get_location(),
@@ -754,7 +753,7 @@ fn parse_function_params(
 
     loop {
         parser.skip_whitespace();
-        if parser.peek_startswith("->") || parser.peek_startswith("::") {
+        if parser.peek_startswith("->") || parser.peek_startswith(":") {
             break;
         }
 
@@ -845,7 +844,7 @@ fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<
     let mut return_types = Vec::new();
 
     parser.skip_whitespace();
-    while !parser.peek_startswith("::") {
+    while !parser.peek_startswith(":") {
         let Some(return_type) = parser.parse_word() else {
             fatal_error(
                 &parser.get_location(),
