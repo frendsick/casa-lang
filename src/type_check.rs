@@ -86,6 +86,7 @@ impl TypeStack for Vec<TypeNode> {
     fn pop_type(&mut self, expected_type: &str) -> Result<TypeNode, PopError> {
         match self.pop_stack() {
             Some(node) if node.ty == expected_type => Ok(node),
+            Some(node) if expected_type == "any" => Ok(node),
             Some(node) if node.ty == "any" => Ok(TypeNode {
                 ty: node.ty,
                 location: node.location,
