@@ -19,6 +19,8 @@ inline fun <=   int int   -> bool : le  end
 inline fun &&   bool bool -> bool : and end
 inline fun ||   bool bool -> bool : or  end
 
+inline fun & any any -> int : and cast(int) end
+inline fun | any any -> int : or  cast(int) end
 inline fun not bool -> bool : cast(int) true cast(int) != end
 
 inline fun read int str int -> int : SYS_read syscall3 end
