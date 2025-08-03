@@ -541,6 +541,20 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
                 let ty = parser.parse_word()?;
                 let close = parser.expect_char(')');
 
+                if ty == "any" {
+                    fatal_error(
+                        &token.location,
+                        CasaError::ValueError,
+                        &format!(
+                            "Casting value to `any` type is prohibited to ensure type safety
+
+{}Hint{}: Functions with parameters typed `any` can take any values as parameters",
+                            Ansi::Blue,
+                            Ansi::Reset,
+                        ),
+                    );
+                }
+
                 let invalid_syntax_message = &format!(
                     "Invalid syntax for `cast` keyword
 
