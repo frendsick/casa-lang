@@ -50,8 +50,23 @@ impl str
     end
 end
 
+const PROT_READ 1 end
+const PROT_WRITE 2 end
+const MAP_PRIVATE 2 end
+const MAP_ANONYMOUS 32 end
+fun malloc length:int -> ptr ::
+    0
+    0
+    MAP_ANONYMOUS MAP_PRIVATE |
+    PROT_READ PROT_WRITE |
+    length
+    NULL
+    SYS_mmap syscall6 cast(ptr)
+end
+
 const SYS_read 0 end
 const SYS_write 1 end
 const SYS_open 2 end
 const SYS_close 3 end
+const SYS_mmap 9 end
 const SYS_exit 60 end
