@@ -508,6 +508,12 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
         parser.skip_whitespace();
         let token = parse_next_token(parser);
 
+        if &token.value == "=" {
+            ops.push(Op::new(OP_COUNTER.fetch_add(), OpType::AssignBind, &token));
+            is_prev_dot = false;
+            continue;
+        };
+
         match &token.ty {
             TokenType::Delimiter(_) => {}
             TokenType::EndOfFile => {
