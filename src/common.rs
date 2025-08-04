@@ -309,7 +309,6 @@ pub struct Function {
     pub is_used: Arc<RwLock<bool>>,
     pub ops: Vec<Op>,
     pub variables: IndexSet<Type>,
-    pub method_type: Arc<RwLock<Option<String>>>,
 }
 
 #[derive(Debug, Clone)]

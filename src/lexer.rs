@@ -637,7 +637,6 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
         is_used: Arc::new(RwLock::new(function_name == "main")).into(),
         ops,
         variables,
-        method_type: Arc::new(RwLock::new(None)),
     })
 }
 
