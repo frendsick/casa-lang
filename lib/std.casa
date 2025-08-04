@@ -33,6 +33,12 @@ inline fun eputs str : stderr fputs end
 
 inline fun str+ int str -> str : swap cast(int) + cast(str) end
 
+impl int
+    fun abs self -> self ::
+        self
+    end
+end
+
 impl str
     fun len self -> int :
         0 while self over str+ cast(ptr) load_byte NULL != do
