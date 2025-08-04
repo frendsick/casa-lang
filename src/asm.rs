@@ -176,6 +176,7 @@ fn get_asm_code_for_op(
     file_numbers: &HashMap<String, usize>,
 ) -> Option<String> {
     match &op.ty {
+        OpType::AssignBind => Some(get_asm_assign_bind(op, function)),
         OpType::Bind => None,
         OpType::Break => Some(get_asm_break(op, function)),
         OpType::Cast(_) => None,
@@ -463,6 +464,21 @@ fn get_asm_else(op: &Op, function: &Function) -> String {
     )
 }
 
+fn get_asm_assign_bind(op: &Op, function: &Function) -> String {
+    let variable_op = function
+        .ops
+        .iter()
+        .find(|x| x.id == op.id - 1)
+        .expect("Variable name");
+
+    format!(
+        "{}
+{}",
+        get_asm_drop(),
+        get_asm_take_bind(variable_op, function)
+    )
+}
+
 fn get_asm_break(op: &Op, function: &Function) -> String {
     let related_id = match get_related_done_id(op, function) {
         Some(id) => id,
@@ -516,17 +532,23 @@ movq %rbx, -{}(%r14)",
 }
 
 fn get_asm_take_bind(op: &Op, function: &Function) -> String {
-    let variable_index = match function.variables.get_index_of(&op.token.value) {
-        Some(index) => index,
-        None => {
-            eprintln!("Variable does not exist: {}", op.token.value);
-            panic!()
-        }
+    let variable_name = &op.token.value;
+    let Some(variable_index) = function.variables.get_index_of(variable_name) else {
+        fatal_error(
+            &op.token.location,
+            CasaError::UnknownIdentifier,
+            &format!("Variable does not exist: {}", variable_name),
+        );
     };
+
+    set_nth_from_return_stack(variable_index)
+}
+
+fn set_nth_from_return_stack(n: usize) -> String {
     format!(
         "popq %rbx
 movq %rbx, -{}(%r14)",
-        variable_index * 8 + 8
+        n * 8 + 8
     )
 }
 

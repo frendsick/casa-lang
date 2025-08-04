@@ -1,6 +1,6 @@
 use crate::common::{
     Ansi, Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Location, Op, OpType,
-    ParameterSlice, Segment,
+    Parameter, ParameterSlice, Segment,
 };
 use crate::error::{CasaError, fatal_error};
 use crate::lexer::normalize_identifier;
@@ -12,6 +12,7 @@ use strum_macros::Display;
 struct TypeNode {
     ty: String,
     location: Location,
+    variable: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -22,6 +23,7 @@ enum PopError {
 
 trait TypeStack {
     fn from_types(types: &[String], location: &Location) -> Vec<TypeNode>;
+    fn from_parameters(parameters: &[Parameter], location: &Location) -> Vec<TypeNode>;
     fn peek_nth(&self, n: usize) -> Option<&TypeNode>;
     fn peek_stack(&self) -> Option<&TypeNode>;
     fn peek_type(&self, expected_type: &str) -> Result<TypeNode, PopError>;
@@ -29,15 +31,29 @@ trait TypeStack {
     fn pop_type(&mut self, expected_type: &str) -> Result<TypeNode, PopError>;
     fn push_node(&mut self, node: &TypeNode);
     fn push_type(&mut self, ty: &str, location: &Location);
+    fn push_variable(&mut self, ty: &str, location: &Location, variable_name: &str);
 }
 
 impl TypeStack for Vec<TypeNode> {
+    fn from_parameters(parameters: &[Parameter], location: &Location) -> Vec<TypeNode> {
+        parameters
+            .iter()
+            .rev()
+            .map(|param| TypeNode {
+                ty: param.ty.clone(),
+                location: location.clone(),
+                variable: param.name.clone(),
+            })
+            .collect()
+    }
+
     fn from_types(types: &[String], location: &Location) -> Vec<TypeNode> {
         types
             .iter()
             .map(|ty| TypeNode {
                 ty: ty.to_string(),
                 location: location.clone(),
+                variable: None,
             })
             .collect()
     }
@@ -56,6 +72,7 @@ impl TypeStack for Vec<TypeNode> {
             Some(node) if node.ty == "any" => Ok(TypeNode {
                 ty: node.ty.clone(),
                 location: node.location.clone(),
+                variable: node.variable.clone(),
             }),
             Some(node) => Err(PopError::WrongType(node.ty.clone())),
             None => Err(PopError::EmptyStack),
@@ -72,6 +89,7 @@ impl TypeStack for Vec<TypeNode> {
             Some(node) if node.ty == "any" => Ok(TypeNode {
                 ty: node.ty,
                 location: node.location,
+                variable: node.variable,
             }),
             Some(node) => Err(PopError::WrongType(node.ty)),
             None => Err(PopError::EmptyStack),
@@ -86,6 +104,15 @@ impl TypeStack for Vec<TypeNode> {
         self.push(TypeNode {
             ty: ty.to_string(),
             location: location.clone(),
+            variable: None,
+        })
+    }
+
+    fn push_variable(&mut self, ty: &str, location: &Location, variable_name: &str) {
+        self.push(TypeNode {
+            ty: ty.to_string(),
+            location: location.clone(),
+            variable: Some(variable_name.to_string()),
         })
     }
 }
@@ -144,15 +171,27 @@ pub fn type_check_program(segments: &[Segment]) {
 
 fn type_check_function(function: &Function) {
     let params = &function.signature.params;
-    let param_types_rev: Vec<String> = params.get_types().iter().rev().cloned().collect();
-    let mut type_stack = Vec::from_types(&param_types_rev, &function.location);
+    let mut type_stack = Vec::from_parameters(&params, &function.location);
     let mut branched_stacks: Vec<BranchedStack> = Vec::new();
     let mut variables: IndexMap<String, String> = IndexMap::new();
+    for param in params {
+        if let Some(param_name) = &param.name {
+            assert!(
+                variables
+                    .insert(param_name.to_string(), param.ty.clone())
+                    .is_none(),
+                "Parameter name `{}` is not unique for function `{}`",
+                param_name,
+                function.name,
+            )
+        }
+    }
     let mut peek_index: usize = 0;
 
     // Type check ops
     for op in &function.ops {
         match &op.ty {
+            OpType::AssignBind => type_check_assign_bind(op, &mut type_stack, &variables),
             OpType::Bind => peek_index = 0,
             OpType::Cast(ty) => type_check_cast(op, &mut type_stack, ty),
             OpType::Break => type_check_break(op, &type_stack, &branched_stacks),
@@ -173,6 +212,7 @@ fn type_check_function(function: &Function) {
             OpType::Identifier => {
                 let identifier = normalize_identifier(&op.token.value);
                 let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
+
                 match global_identifiers.get(&identifier) {
                     Some(Identifier::Constant(c)) => match &c.literal {
                         Literal::Boolean(b) => type_stack.push_type("bool", &op.token.location),
@@ -183,7 +223,7 @@ fn type_check_function(function: &Function) {
                         type_check_function_call(op, &mut type_stack, f);
                     }
                     None => match variables.get(&identifier) {
-                        Some(ty) => type_stack.push_type(ty, &op.token.location),
+                        Some(ty) => type_stack.push_variable(ty, &op.token.location, &identifier),
                         None => fatal_error(
                             &op.token.location,
                             CasaError::UnknownIdentifier,
@@ -282,6 +322,57 @@ fn type_check_stack_state(
                 op.token.value, expected_branch_type
             ),
         ),
+    }
+}
+
+fn type_check_assign_bind(
+    op: &Op,
+    type_stack: &mut Vec<TypeNode>,
+    variables: &IndexMap<String, String>,
+) {
+    let required_values = 2;
+    if type_stack.len() < required_values {
+        fatal_error(
+            &op.token.location,
+            CasaError::StackUnderflow,
+            &format!(
+                "Assign operation requires {} values but the stack only has {}",
+                required_values,
+                type_stack.len(),
+            ),
+        );
+    }
+
+    let variable_node = type_stack.pop_stack().unwrap();
+    let value_node = type_stack.pop_stack().unwrap();
+
+    let Some(variable_name) = variable_node.variable else {
+        fatal_error(
+            &op.token.location,
+            CasaError::ValueError,
+            "Cannot assign to a value that is not a variable",
+        );
+    };
+
+    let Some(variable_type) = variables.get(&variable_name) else {
+        fatal_error(
+            &op.token.location,
+            CasaError::UnknownIdentifier,
+            &format!("Variable '{variable_name}' is not defined"),
+        );
+    };
+
+    assert_eq!(*variable_type, variable_node.ty, "Variable type changed");
+
+    if *variable_type != value_node.ty {
+        fatal_error(
+            &op.token.location,
+            CasaError::ValueError,
+            &format!(
+                "Cannot assign value of type `{}` to a variable `{}` of type `{}`",
+                value_node.ty, variable_name, variable_type,
+            ),
+        );
     }
 }
 
@@ -469,7 +560,7 @@ fn type_check_push_bind(
             &format!("Variable '{variable_name}' is not defined"),
         ),
     };
-    type_stack.push_type(ty, &op.token.location);
+    type_stack.push_variable(ty, &op.token.location, &variable_name);
 }
 
 fn type_check_peek_bind(

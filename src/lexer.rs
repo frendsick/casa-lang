@@ -507,6 +507,7 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
     loop {
         parser.skip_whitespace();
         let token = parse_next_token(parser);
+
         match &token.ty {
             TokenType::Delimiter(_) => {}
             TokenType::EndOfFile => {
@@ -931,6 +932,7 @@ fn get_literal_op(literal: &Literal, token: &Token) -> Op {
 fn get_keyword_op(keyword: &Keyword, token: &Token) -> Option<Op> {
     let id = OP_COUNTER.fetch_add();
     match keyword {
+        Keyword::Assign => Some(Op::new(id, OpType::AssignBind, token)),
         Keyword::Bind => Some(Op::new(id, OpType::Bind, token)),
         Keyword::Break => Some(Op::new(id, OpType::Break, token)),
         Keyword::Continue => Some(Op::new(id, OpType::Continue, token)),

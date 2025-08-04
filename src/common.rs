@@ -60,6 +60,7 @@ pub enum Delimiter {
 #[derive(Debug, Clone, PartialEq, EnumString, Display)]
 #[strum(serialize_all = "lowercase")]
 pub enum Keyword {
+    Assign,
     Bind,
     Break,
     Cast,
@@ -210,6 +211,7 @@ pub enum OpType {
     Take,
     Peek,
     Bind,
+    AssignBind,
     TakeBind,
     PeekBind,
 
