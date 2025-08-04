@@ -482,13 +482,8 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
     // Function signature
     let mut variables = IndexSet::new();
     let signature_location = parser.get_location();
-    let signature = parse_function_signature(
-        parser,
-        &function_name,
-        &mut ops,
-        &mut variables,
-        self_type.clone(),
-    );
+    let signature =
+        parse_function_signature(parser, &function_name, &mut ops, &mut variables, &self_type);
     validate_signature(&function_name, &signature, &signature_location);
     parser.skip_whitespace();
 
@@ -742,11 +737,11 @@ fn parse_function_signature(
     function_name: &str,
     ops: &mut Vec<Op>,
     variables: &mut IndexSet<String>,
-    self_type: Option<Type>,
+    self_type: &Option<Type>,
 ) -> Signature {
     let params = parse_function_params(parser, function_name, ops, variables, self_type).unwrap();
     let return_types = match parser.expect_word("->") {
-        Some(_) => parse_function_return_types(parser, function_name),
+        Some(_) => parse_function_return_types(parser, function_name, self_type),
         None => Vec::new(),
     };
     Signature {
@@ -760,7 +755,7 @@ fn parse_function_params(
     function_name: &str,
     ops: &mut Vec<Op>,
     variables: &mut IndexSet<String>,
-    self_type: Option<Type>,
+    self_type: &Option<Type>,
 ) -> Option<Vec<Parameter>> {
     let mut params = Vec::new();
 
@@ -787,7 +782,7 @@ fn parse_function_params(
 
         let name_or_type = parse_next_token(parser);
         let is_self = self_type.is_some() && name_or_type.value == "self";
-        if is_self && let Some(ref ty) = self_type {
+        if is_self && let Some(ty) = self_type {
             if params.is_empty() && parser.peek_char() == Some(':') {
                 fatal_error(
                     &name_or_type.location,
@@ -853,12 +848,16 @@ fn parse_function_params(
     Some(params)
 }
 
-fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<String> {
+fn parse_function_return_types(
+    parser: &mut Parser,
+    function_name: &str,
+    self_type: &Option<Type>,
+) -> Vec<String> {
     let mut return_types = Vec::new();
 
     parser.skip_whitespace();
     while !parser.peek_startswith(":") {
-        let Some(return_type) = parser.parse_word() else {
+        let Some(parsed_type) = parser.parse_word() else {
             fatal_error(
                 &parser.get_location(),
                 CasaError::SyntaxError,
@@ -871,6 +870,14 @@ fn parse_function_return_types(parser: &mut Parser, function_name: &str) -> Vec<
                     Ansi::Reset,
                 ),
             )
+        };
+
+        let return_type = if parsed_type == "self"
+            && let Some(ty) = self_type
+        {
+            ty.to_string()
+        } else {
+            parsed_type
         };
         return_types.push(return_type);
         parser.skip_whitespace();
