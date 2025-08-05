@@ -1,6 +1,6 @@
 use crate::common::{
     Ansi, Function, GLOBAL_IDENTIFIERS, Identifier, Intrinsic, Literal, Location, Op, OpType,
-    Parameter, ParameterSlice, Segment,
+    Parameter, Segment,
 };
 use crate::error::{CasaError, fatal_error};
 use crate::lexer::normalize_identifier;
