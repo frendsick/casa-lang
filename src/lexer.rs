@@ -115,6 +115,24 @@ impl Parser<'_> {
         Some(word)
     }
 
+    fn expect_whitespace(&mut self) -> Option<String> {
+        let rest = self.rest();
+        let mut whitespaces = String::new();
+        for (i, char) in rest.char_indices() {
+            if !char.is_whitespace() {
+                self.cursor = self.cursor + i;
+                break;
+            }
+            whitespaces.push(char);
+        }
+
+        if whitespaces.is_empty() {
+            None
+        } else {
+            Some(whitespaces)
+        }
+    }
+
     fn expect_char(&mut self, expected: char) -> Option<char> {
         let first = self.code.chars().next();
         if let Some(c) = first {
@@ -758,9 +776,9 @@ fn parse_function_params(
     self_type: &Option<Type>,
 ) -> Option<Vec<Parameter>> {
     let mut params = Vec::new();
+    parser.skip_whitespace();
 
     loop {
-        parser.skip_whitespace();
         if parser.peek_startswith("->") || parser.peek_startswith(":") {
             break;
         }
@@ -842,6 +860,18 @@ fn parse_function_params(
                 OpType::TakeBind,
                 &name_or_type,
             ));
+        }
+
+        if parser.expect_whitespace().is_none() {
+            let next_token = parse_next_token(parser);
+            fatal_error(
+                &next_token.location,
+                CasaError::SyntaxError,
+                &format!(
+                    "Expected whitespace after parsed parameter `{}` but got `{}`",
+                    name_or_type.value, next_token.value,
+                ),
+            )
         }
     }
 
