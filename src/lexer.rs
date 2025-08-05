@@ -510,7 +510,7 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
         fatal_error(
             &parser.get_location(),
             CasaError::SyntaxError,
-            &format!("{}: Expected '::' but got '{}'", error_prefix, word),
+            &format!("{}: Expected ':' but got '{}'", error_prefix, word),
         )
     }
 
