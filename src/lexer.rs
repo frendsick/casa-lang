@@ -291,10 +291,10 @@ fn parse_code_segments(parser: &mut Parser) -> Option<Vec<Segment>> {
             "#include" => segments.push(parse_include_segment(parser)?),
             "impl" => {
                 parser.expect_word("impl")?;
-                parser.skip_whitespace();
+                parser.expect_whitespace()?;
 
                 let impl_type = parser.parse_word()?;
-                parser.skip_whitespace();
+                parser.expect_whitespace()?;
 
                 while parser.expect_word("end").is_none() {
                     let function = parse_function(parser, Some(impl_type.clone()))?;
@@ -327,7 +327,7 @@ fn parse_code_segments(parser: &mut Parser) -> Option<Vec<Segment>> {
 
 fn parse_const_segment(parser: &mut Parser) -> Option<Segment> {
     parser.expect_word("const")?;
-    parser.skip_whitespace();
+    parser.expect_whitespace()?;
 
     let const_name_token = parse_next_token(parser);
     let name = const_name_token.value.clone();
@@ -341,7 +341,7 @@ fn parse_const_segment(parser: &mut Parser) -> Option<Segment> {
             ),
         );
     }
-    parser.skip_whitespace();
+    parser.expect_whitespace()?;
 
     let literal_token = parse_next_token(parser);
     let literal = match literal_token.ty {
@@ -352,7 +352,7 @@ fn parse_const_segment(parser: &mut Parser) -> Option<Segment> {
             &format!("Invalid constant literal: {}", literal_token.value),
         ),
     };
-    parser.skip_whitespace();
+    parser.expect_whitespace()?;
 
     parser.expect_word("end")?;
     parser.skip_whitespace();
@@ -367,7 +367,7 @@ fn parse_const_segment(parser: &mut Parser) -> Option<Segment> {
 
 fn parse_include_segment(parser: &mut Parser) -> Option<Segment> {
     parser.expect_word("#include")?;
-    parser.skip_whitespace();
+    parser.expect_whitespace()?;
     let include_path = parse_include_path_as_absolute(parser)?;
     Some(Segment::Include(include_path))
 }
@@ -457,7 +457,7 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
             ),
         )
     }
-    parser.skip_whitespace();
+    parser.expect_whitespace()?;
 
     // Add function prologue if the function is not inline
     if !is_inline {
@@ -495,7 +495,7 @@ fn parse_function(parser: &mut Parser, self_type: Option<Type>) -> Option<Functi
             ),
         )
     }
-    parser.skip_whitespace();
+    parser.expect_whitespace()?;
 
     // Function signature
     let mut variables = IndexSet::new();
@@ -884,8 +884,8 @@ fn parse_function_return_types(
     self_type: &Option<Type>,
 ) -> Vec<String> {
     let mut return_types = Vec::new();
-
     parser.skip_whitespace();
+
     while !parser.peek_startswith(":") {
         let Some(parsed_type) = parser.parse_word() else {
             fatal_error(
