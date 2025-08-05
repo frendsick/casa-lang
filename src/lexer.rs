@@ -909,8 +909,19 @@ fn parse_function_return_types(
         } else {
             parsed_type
         };
-        return_types.push(return_type);
-        parser.skip_whitespace();
+        return_types.push(return_type.clone());
+
+        if parser.expect_whitespace().is_none() {
+            let next_token = parse_next_token(parser);
+            fatal_error(
+                &next_token.location,
+                CasaError::SyntaxError,
+                &format!(
+                    "Expected whitespace after parsed return type `{}` but got `{}`",
+                    return_type, next_token.value,
+                ),
+            )
+        }
     }
     return_types
 }
