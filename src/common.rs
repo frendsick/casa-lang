@@ -122,6 +122,7 @@ pub enum Intrinsic {
     Mod,
     Mul,
     Ne,
+    Neg,
     Or,
     Over,
     Rot,

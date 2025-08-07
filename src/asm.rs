@@ -298,6 +298,7 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
         Intrinsic::Mod => get_asm_mod().to_string(),
         Intrinsic::Mul => get_asm_mul().to_string(),
         Intrinsic::Ne => get_asm_comparison(SetOperand::Setne),
+        Intrinsic::Neg => get_asm_neg().to_string(),
         Intrinsic::Or => get_asm_or().to_string(),
         Intrinsic::Over => get_asm_over().to_string(),
         Intrinsic::Rot => get_asm_rot().to_string(),
@@ -636,6 +637,10 @@ fn get_asm_mul() -> &'static str {
 popq %rbx
 mulq %rbx
 pushq %rax"
+}
+
+fn get_asm_neg() -> &'static str {
+    "negq (%rsp)"
 }
 
 fn get_asm_or() -> &'static str {

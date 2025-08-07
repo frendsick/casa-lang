@@ -676,6 +676,7 @@ fn type_check_intrinsic(op: &Op, type_stack: &mut Vec<TypeNode>, intrinsic: &Int
         Intrinsic::Mod => type_check_arithmetic(op, type_stack),
         Intrinsic::Mul => type_check_arithmetic(op, type_stack),
         Intrinsic::Ne => type_check_comparison_operator(op, type_stack),
+        Intrinsic::Neg => type_check_neg(op, type_stack),
         Intrinsic::Or => type_check_boolean_operator(op, type_stack),
         Intrinsic::Over => type_check_over(op, type_stack),
         Intrinsic::Rot => type_check_rot(op, type_stack),
@@ -831,6 +832,24 @@ fn type_check_over(op: &Op, type_stack: &mut Vec<TypeNode>) {
     let t2 = type_stack.peek_stack().unwrap().clone();
     type_stack.push_node(&t1);
     type_stack.push_type(&t2.ty, &op.token.location);
+}
+
+fn type_check_neg(op: &Op, type_stack: &mut Vec<TypeNode>) {
+    match type_stack.pop_type("int") {
+        Ok(_) => {}
+        Err(PopError::EmptyStack) => {
+            unreachable!("The `neg` intrinsic requires an integer but the stack is empty")
+        }
+        Err(PopError::WrongType(ty)) => fatal_error(
+            &op.token.location,
+            CasaError::ValueError,
+            &format!(
+                "Expected `int` but got `{}`",
+                ty,
+            ),
+        ),
+    }
+    type_stack.push_type("int", &op.token.location);
 }
 
 fn type_check_rot(op: &Op, type_stack: &mut Vec<TypeNode>) {
