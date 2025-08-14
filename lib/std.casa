@@ -40,7 +40,7 @@ const PROT_READ 1 end
 const PROT_WRITE 2 end
 const MAP_PRIVATE 2 end
 const MAP_ANONYMOUS 32 end
-fun malloc length:int -> ptr ::
+fun mmap length:int -> ptr :
     0
     0
     MAP_ANONYMOUS MAP_PRIVATE |
