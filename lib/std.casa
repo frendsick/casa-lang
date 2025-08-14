@@ -34,6 +34,7 @@ end
 inline fun puts str : stdout fputs end
 inline fun eputs str : stderr fputs end
 
+inline fun ptr+ int ptr -> ptr : swap cast(int) + cast(ptr) end
 inline fun str+ int str -> str : swap cast(int) + cast(str) end
 
 const PROT_READ 1 end
@@ -48,6 +49,15 @@ fun mmap length:int -> ptr :
     length
     NULL
     SYS_mmap syscall6 cast(ptr)
+end
+
+fun memcpy dst:ptr src:ptr len:int :
+    0 take index bind
+    while index len < do
+        src index ptr+ load_byte
+        dst index ptr+ store_byte
+        index 1 + index =
+    done
 end
 
 const SYS_read 0 end
