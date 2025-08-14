@@ -97,6 +97,21 @@ impl str
         copy cast(str)
     end
 
+    fun reverse self :
+        self.len 1 -
+        0
+        take i j bind
+
+        while i j < do
+            i self.nth  take i_char bind
+            j self.nth  self i str+ cast(ptr) store_byte
+            i_char      self j str+ cast(ptr) store_byte
+
+            i 1 + i =
+            j 1 - j =
+        done
+    end
+
     fun nth self n:int -> char :
         self n str+ cast(ptr) load_byte cast(char)
     end
