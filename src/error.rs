@@ -24,8 +24,26 @@ pub fn colored_error_tag(error: CasaError) -> String {
     format!("[{}{}{}]", Ansi::Red, error, Ansi::Reset)
 }
 
+pub fn colored_location(location: &Location) -> String {
+    format!(
+        "{}:{}{}{}:{}{}{}",
+        location.file.display(),
+        Ansi::Yellow,
+        location.row,
+        Ansi::Reset,
+        Ansi::Yellow,
+        location.col,
+        Ansi::Reset
+    )
+}
+
 pub fn print_error(location: &Location, error: CasaError, message: &str) {
-    eprintln!("{} {}\n\n{}", colored_error_tag(error), location, message);
+    eprintln!(
+        "{} {}\n\n{}",
+        colored_error_tag(error),
+        colored_location(location),
+        message
+    );
 }
 
 pub fn print_error_short(error: CasaError, message: &str) {

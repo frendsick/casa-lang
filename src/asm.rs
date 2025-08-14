@@ -102,6 +102,7 @@ fn get_asm_for_function(function: &Function, file_numbers: &HashMap<String, usiz
 fn get_asm_for_function_ops(function: &Function, file_numbers: &HashMap<String, usize>) -> String {
     let mut asm_blocks = Vec::new();
     for op in &function.ops {
+        asm_blocks.push(get_asm_comment_for_op(op, function));
         asm_blocks.push(get_asm_location_for_op(op, file_numbers));
         if let Some(asm_code) = get_asm_code_for_op(op, function, file_numbers) {
             asm_blocks.push(asm_code);
@@ -109,6 +110,10 @@ fn get_asm_for_function_ops(function: &Function, file_numbers: &HashMap<String, 
     }
 
     asm_blocks.join("\n")
+}
+
+fn get_asm_comment_for_op(op: &Op, function: &Function) -> String {
+    format!("# [{}] {:?} {}", function.name, op.ty, op.token.location)
 }
 
 fn get_asm_data_section(segments: &[Segment]) -> String {

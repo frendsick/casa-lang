@@ -151,17 +151,7 @@ pub struct Location {
 
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}:{}{}{}:{}{}{}",
-            self.file.display(),
-            Ansi::Yellow,
-            self.row,
-            Ansi::Reset,
-            Ansi::Yellow,
-            self.col,
-            Ansi::Reset
-        )
+        write!(f, "{}:{}:{}", self.file.display(), self.row, self.col,)
     }
 }
 
