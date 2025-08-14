@@ -87,4 +87,13 @@ impl str
             1 +
         done
     end
+
+    fun copy self -> str :
+        self.len
+        self cast(ptr)
+        over 1 + mmap peek copy bind
+        memcpy
+
+        copy cast(str)
+    end
 end
