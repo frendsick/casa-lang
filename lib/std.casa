@@ -58,6 +58,10 @@ const SYS_mmap 9 end
 const SYS_exit 60 end
 
 impl int
+    inline fun abs int -> int :
+        dup neg int::max
+    end
+
     fun max v1:int v2:int -> int :
         if v1 v2 > then
             v1
