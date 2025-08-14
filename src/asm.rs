@@ -304,6 +304,10 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
         Intrinsic::Rot => get_asm_rot().to_string(),
         Intrinsic::Shl => get_asm_shl().to_string(),
         Intrinsic::Shr => get_asm_shr().to_string(),
+        Intrinsic::StoreByte => get_asm_store(DataSize::Byte),
+        Intrinsic::StoreWord => get_asm_store(DataSize::Word),
+        Intrinsic::StoreDword => get_asm_store(DataSize::Dword),
+        Intrinsic::StoreQword => get_asm_store(DataSize::Qword),
         Intrinsic::Sub => get_asm_sub().to_string(),
         Intrinsic::Swap => get_asm_swap().to_string(),
         Intrinsic::Syscall0 => get_asm_syscall(0),
@@ -313,7 +317,6 @@ fn get_asm_intrinsic(intrinsic: &Intrinsic) -> String {
         Intrinsic::Syscall4 => get_asm_syscall(4),
         Intrinsic::Syscall5 => get_asm_syscall(5),
         Intrinsic::Syscall6 => get_asm_syscall(6),
-        _ => todo!(),
     }
 }
 
@@ -669,6 +672,22 @@ shlq %cl, (%rsp)"
 fn get_asm_shr() -> &'static str {
     "popq %rcx
 shrq %cl, (%rsp)"
+}
+
+fn get_asm_store(size: DataSize) -> String {
+    let store_asm = match size {
+        DataSize::Byte => "movb %bl, (%rax)",
+        DataSize::Word => "movw %bx, (%rax)",
+        DataSize::Dword => "movl %ebx, (%rax)",
+        DataSize::Qword => "movq %rbx, (%rax)",
+    };
+
+    format!(
+        "popq %rax
+popq %rbx
+{}",
+        store_asm
+    )
 }
 
 fn get_asm_sub() -> &'static str {
