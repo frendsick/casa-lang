@@ -703,7 +703,7 @@ movq %rax, 8(%rsp)"
 
 fn get_asm_syscall(argc: u8) -> String {
     let mut asm = "popq %rax".to_string();
-    let argument_registers = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+    let argument_registers = ["rdi", "rsi", "rdx", "r10", "r8", "r9"];
     for (i, register) in argument_registers.iter().enumerate() {
         if usize::from(argc) <= i {
             break;
