@@ -68,6 +68,38 @@ const SYS_mmap 9 end
 const SYS_exit 60 end
 
 impl int
+    fun to_str self -> str :
+        if self 0 == then
+            "0" return
+        fi
+
+        self.count_digits
+        dup 2 + mmap cast(str)
+        10
+        0
+        take index base string digits bind
+
+        self 0 < take is_negative bind
+        if is_negative then
+            self.abs self =
+        fi
+
+        while index digits < do
+            self base % 48 +
+            string index str+ cast(ptr) store_byte
+
+            self base / self =
+            index 1 + index =
+        done
+
+        if is_negative then
+            45 string index str+ cast(ptr) store_byte
+        fi
+
+        string.reverse
+        string
+    end
+
     fun count_digits self -> int :
         if self 0 == then
             1 return
