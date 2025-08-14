@@ -96,4 +96,8 @@ impl str
 
         copy cast(str)
     end
+
+    fun nth self n:int -> char :
+        self n str+ cast(ptr) load_byte cast(char)
+    end
 end
