@@ -57,7 +57,7 @@ ret",
 
     for segment in segments {
         match segment {
-            Segment::Function(f) if *f.is_used.read().unwrap() => {
+            Segment::Function(f) if !f.is_inline && *f.is_used.read().unwrap() => {
                 asm_blocks.push(get_asm_for_function(f, &file_numbers))
             }
             _ => {}
