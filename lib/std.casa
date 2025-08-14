@@ -36,20 +36,6 @@ inline fun eputs str : stderr fputs end
 
 inline fun str+ int str -> str : swap cast(int) + cast(str) end
 
-impl int
-    fun abs self -> self ::
-        self
-    end
-end
-
-impl str
-    fun len self -> int :
-        0 while self over str+ cast(ptr) load_byte NULL != do
-            1 +
-        done
-    end
-end
-
 const PROT_READ 1 end
 const PROT_WRITE 2 end
 const MAP_PRIVATE 2 end
@@ -70,3 +56,21 @@ const SYS_open 2 end
 const SYS_close 3 end
 const SYS_mmap 9 end
 const SYS_exit 60 end
+
+impl int
+    fun max v1:int v2:int -> int :
+        if v1 v2 > then
+            v1
+        else
+            v2
+        fi
+    end
+end
+
+impl str
+    fun len self -> int :
+        0 while self over str+ cast(ptr) load_byte NULL != do
+            1 +
+        done
+    end
+end
