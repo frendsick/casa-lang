@@ -327,9 +327,13 @@ impl Counter {
 
 fn find_op_index_from_nested_ifs(op: &Op, function: &Function, op_type: OpType) -> Option<usize> {
     let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
-    let mut nested_ifs = 0;
+    let mut nested_ifs: i32 = 0;
 
     for other_op in &function.ops[op_index + 1..] {
+        if nested_ifs.is_negative() {
+            return None;
+        }
+
         match &other_op.ty {
             ty if *ty == op_type && nested_ifs == 0 => return Some(other_op.id),
             OpType::Fi => nested_ifs -= 1,
@@ -359,9 +363,13 @@ pub fn get_related_done_id(op: &Op, function: &Function) -> Option<usize> {
     assert!(op.ty == OpType::Break || op.ty == OpType::Do);
 
     let op_index = function.ops.binary_search_by_key(&op.id, |op| op.id).ok()?;
-    let mut nested_whiles = 0;
+    let mut nested_whiles: i32 = 0;
 
     for other_op in &function.ops[op_index + 1..] {
+        if nested_whiles.is_negative() {
+            return None;
+        }
+
         match other_op.ty {
             OpType::Done if nested_whiles == 0 => return Some(other_op.id),
             OpType::Done => nested_whiles -= 1,
