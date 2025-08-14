@@ -68,6 +68,22 @@ const SYS_mmap 9 end
 const SYS_exit 60 end
 
 impl int
+    fun count_digits self -> int :
+        if self 0 == then
+            1 return
+        fi
+
+        self.abs self =
+        0 take count bind
+
+        while self 0 != do
+            self 10 / self =
+            count 1 + count =
+        done
+
+        count
+    end
+
     inline fun abs int -> int :
         dup neg int::max
     end
