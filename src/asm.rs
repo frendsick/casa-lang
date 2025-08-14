@@ -230,7 +230,14 @@ fn get_asm_code_for_op(
             #[rustfmt::skip]
             let receiver = op.receiver.read().unwrap().clone().expect("Method receiver type");
             let function_name = format!("{}.{}", receiver, op.token.value);
-            Some(get_asm_function_call(&function_name))
+            let global_identifiers = GLOBAL_IDENTIFIERS.get().unwrap();
+            match global_identifiers.get(&function_name) {
+                Some(Identifier::Function(f)) => match f.is_inline {
+                    false => Some(get_asm_function_call(&function_name)),
+                    true => Some(get_asm_for_function_ops(f, file_numbers)),
+                },
+                _ => unreachable!("Method `{}` should exist", function_name),
+            }
         }
         OpType::Peek => Some(get_asm_peek().to_string()),
         OpType::PeekBind => Some(get_asm_peek_bind(op, function)),
