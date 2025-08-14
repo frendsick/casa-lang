@@ -70,7 +70,6 @@ pub enum Keyword {
     Done,
     Elif,
     Else,
-    Endif,
     End,
     Enum,
     Fi,
