@@ -87,7 +87,7 @@ pub enum Keyword {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Boolean(bool),
-    Integer(i32),
+    Integer(i64),
     String(String),
 }
 

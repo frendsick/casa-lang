@@ -352,7 +352,7 @@ pushq %rax",
     )
 }
 
-fn get_asm_push_int(value: i32) -> String {
+fn get_asm_push_int(value: i64) -> String {
     format!(
         "movabs ${}, %rax
 pushq %rax",

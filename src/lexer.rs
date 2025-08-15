@@ -735,7 +735,7 @@ fn parse_next_token(parser: &mut Parser) -> Token {
         v if let Ok(boolean) = v.parse::<bool>() => {
             Token::new(&v, TokenType::Literal(Literal::Boolean(boolean)), location)
         }
-        v if let Ok(integer) = v.parse::<i32>() => {
+        v if let Ok(integer) = v.parse::<i64>() => {
             Token::new(&v, TokenType::Literal(Literal::Integer(integer)), location)
         }
         v if let Ok(intrinsic) = v.parse::<Intrinsic>() => {
