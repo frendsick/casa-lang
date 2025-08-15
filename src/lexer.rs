@@ -778,6 +778,8 @@ fn parse_function_params(
     let mut params = Vec::new();
     parser.skip_whitespace();
 
+    // Named parameters are not allowed after non-named parameters
+    let mut allow_named_parameter = true;
     loop {
         if parser.peek_startswith("->") || parser.peek_startswith(":") {
             break;
@@ -802,14 +804,33 @@ fn parse_function_params(
         let is_self = self_type.is_some() && name_or_type.value == "self";
 
         let param = match parser.expect_word(":") {
-            None if is_self => Parameter {
-                name: None,
-                ty: self_type.clone().expect("Type of `self` is defined"),
-            },
-            None => Parameter {
-                name: None,
-                ty: name_or_type.value.clone(),
-            },
+            None => {
+                allow_named_parameter = false;
+                if is_self {
+                    Parameter {
+                        name: None,
+                        ty: self_type.clone().expect("Type of `self` is defined"),
+                    }
+                } else {
+                    Parameter {
+                        name: None,
+                        ty: name_or_type.value.clone(),
+                    }
+                }
+            }
+            Some(_) if !allow_named_parameter => fatal_error(
+                &name_or_type.location,
+                CasaError::SyntaxError,
+                &format!(
+                    "Named parameters are not allowed after non-named parameters
+
+{}Hint{}: Name all parameters of the `{}` function before the `{}` parameter or un-name the parameter",
+                    Ansi::Blue,
+                    Ansi::Reset,
+                    function_name,
+                    &name_or_type.value
+                ),
+            ),
             Some(_) => Parameter {
                 name: Some(name_or_type.value.clone()),
                 ty: match parser.parse_word()?.as_str() {
