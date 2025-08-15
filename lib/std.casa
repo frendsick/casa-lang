@@ -33,6 +33,8 @@ end
 
 inline fun puts str : stdout fputs end
 inline fun eputs str : stderr fputs end
+inline fun puti int : int::to_str puts end
+inline fun eputi int : int::to_str eputs end
 
 inline fun ptr+ int ptr -> ptr : swap cast(int) + cast(ptr) end
 inline fun str+ int str -> str : swap cast(int) + cast(str) end
