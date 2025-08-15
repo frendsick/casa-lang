@@ -70,7 +70,7 @@ const SYS_mmap 9 end
 const SYS_exit 60 end
 
 impl int
-    fun to_str self -> str :
+    fun to_str self:self -> str :
         if self 0 == then
             "0" return
         fi
@@ -102,7 +102,7 @@ impl int
         string
     end
 
-    fun count_digits self -> int :
+    fun count_digits self:self -> int :
         if self 0 == then
             1 return
         fi
@@ -118,7 +118,7 @@ impl int
         count
     end
 
-    inline fun abs int -> int :
+    inline fun abs self -> int :
         dup neg int::max
     end
 
@@ -132,13 +132,13 @@ impl int
 end
 
 impl str
-    fun len self -> int :
+    fun len self:self -> int :
         0 while self over str+ cast(ptr) load_byte NULL != do
             1 +
         done
     end
 
-    fun copy self -> str :
+    fun copy self:self -> str :
         self.len
         self cast(ptr)
         over 1 + mmap peek copy bind
@@ -147,7 +147,7 @@ impl str
         copy cast(str)
     end
 
-    fun reverse self :
+    fun reverse self:self :
         self.len 1 -
         0
         take i j bind
@@ -162,7 +162,7 @@ impl str
         done
     end
 
-    fun nth self n:int -> char :
+    fun nth self:self n:int -> char :
         self n str+ cast(ptr) load_byte cast(char)
     end
 end

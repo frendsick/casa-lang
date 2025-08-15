@@ -800,36 +800,10 @@ fn parse_function_params(
 
         let name_or_type = parse_next_token(parser);
         let is_self = self_type.is_some() && name_or_type.value == "self";
-        if is_self && let Some(ty) = self_type {
-            if params.is_empty() && parser.peek_char() == Some(':') {
-                fatal_error(
-                    &name_or_type.location,
-                    CasaError::SyntaxError,
-                    &format!(
-                        "Unexpected colon after `self` parameter.
-
-{}Hint{}: The `self` parameter implicitly has the type of the related struct `{}`",
-                        Ansi::Blue,
-                        Ansi::Reset,
-                        ty,
-                    ),
-                );
-            } else if !params.is_empty() {
-                fatal_error(
-                    &name_or_type.location,
-                    CasaError::InvalidIdentifier,
-                    &format!(
-                        "The `self` parameter should be the first parameter but is found at the {}. position of the `{}` function",
-                        params.len() + 1,
-                        function_name,
-                    ),
-                )
-            }
-        }
 
         let param = match parser.expect_word(":") {
             None if is_self => Parameter {
-                name: Some("self".to_string()),
+                name: None,
                 ty: self_type.clone().expect("Type of `self` is defined"),
             },
             None => Parameter {
@@ -838,7 +812,10 @@ fn parse_function_params(
             },
             Some(_) => Parameter {
                 name: Some(name_or_type.value.clone()),
-                ty: parser.parse_word()?,
+                ty: match parser.parse_word()?.as_str() {
+                    "self" => self_type.clone().expect("Type of `self` is defined"),
+                    ty => ty.to_string(),
+                },
             },
         };
         params.push(param.clone());
